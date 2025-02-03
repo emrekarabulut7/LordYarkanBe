@@ -309,6 +309,125 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
   }
 });
 
+// Silinen ilanları getir
+router.get('/deleted', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { data: deletedListings, error } = await supabase
+      .from('deleted_listings')
+      .select('*')  // Sadece deleted_listings tablosundan veri al
+      .order('deleted_at', { ascending: false });
+
+    if (error) {
+      console.error('Silinen ilanları getirme hatası:', error);
+      throw error;
+    }
+
+    console.log('Silinen ilanlar:', deletedListings);
+
+    res.json({
+      success: true,
+      data: deletedListings
+    });
+
+  } catch (error) {
+    console.error('Silinen ilanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Silinen ilanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// İlan silme route'u
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    // 1. Önce ilanın var olduğunu ve kullanıcıya ait olduğunu kontrol et
+    const { data: listing, error: fetchError } = await supabase
+      .from('listings')
+      .select('*, user:users(username)')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError || !listing) {
+      return res.status(404).json({
+        success: false,
+        message: 'İlan bulunamadı veya bu işlem için yetkiniz yok'
+      });
+    }
+
+    console.log('1. Silinecek ilan bulundu:', listing);
+
+    // 2. Silinecek ilanı deleted_listings tablosuna kaydet
+    const deletedListing = {
+      original_id: listing.id,
+      user_id: listing.user_id,
+      title: listing.title,
+      description: listing.description,
+      category: listing.category,
+      server: listing.server,
+      price: listing.price,
+      currency: listing.currency,
+      phone: listing.phone,
+      discord: listing.discord,
+      image_url: listing.image_url,
+      status: listing.status,
+      created_at: listing.created_at,
+      updated_at: listing.updated_at,
+      deleted_at: new Date().toISOString(),
+      deleted_by: req.user.id,
+      deleted_by_username: req.user.username // Silen kullanıcının adını da kaydedelim
+    };
+
+    console.log('2. Arşivlenecek veri hazırlandı:', deletedListing);
+
+    const { error: insertError } = await supabase
+      .from('deleted_listings')
+      .insert([deletedListing]);
+
+    if (insertError) {
+      console.error('Arşivleme hatası:', insertError);
+      throw new Error(`Arşivleme hatası: ${insertError.message}`);
+    }
+
+    console.log('3. İlan arşivlendi');
+
+    // 3. Eğer resim varsa, storage'dan sil
+    if (listing.image_url) {
+      const fileName = listing.image_url.split('/').pop();
+      await supabase.storage.from('listing-images').remove([fileName]);
+    }
+
+    // 4. Orijinal ilanı sil
+    const { error: deleteError } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (deleteError) {
+      console.error('İlan silme hatası:', deleteError);
+      throw new Error(`İlan silme hatası: ${deleteError.message}`);
+    }
+
+    console.log('4. Orijinal ilan silindi');
+
+    res.json({
+      success: true,
+      message: 'İlan başarıyla silindi ve arşivlendi'
+    });
+
+  } catch (error) {
+    console.error('Silme işlemi sırasında hata:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlan silinirken bir hata oluştu',
+      error: error.message,
+      details: error.stack
+    });
+  }
+});
+
 // Tekil ilan getir (En sona alıyoruz)
 router.get('/:id', async (req, res) => {
   try {
@@ -345,53 +464,6 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'İlan getirilirken bir hata oluştu',
-      error: error.message
-    });
-  }
-});
-
-// İlan silme route'u
-router.delete('/:id', authenticateToken, async (req, res) => {
-  try {
-    // Önce ilanın var olduğunu ve kullanıcıya ait olduğunu kontrol et
-    const { data: listing, error: fetchError } = await supabase
-      .from('listings')
-      .select('*')
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
-      .single();
-
-    if (fetchError || !listing) {
-      return res.status(404).json({
-        success: false,
-        message: 'İlan bulunamadı veya bu işlem için yetkiniz yok'
-      });
-    }
-
-    // Eğer resim varsa, önce storage'dan sil
-    if (listing.image_url) {
-      const fileName = listing.image_url.split('/').pop();
-      await supabase.storage.from('listing-images').remove([fileName]);
-    }
-
-    // İlanı sil
-    const { error: deleteError } = await supabase
-      .from('listings')
-      .delete()
-      .eq('id', req.params.id);
-
-    if (deleteError) throw deleteError;
-
-    res.json({
-      success: true,
-      message: 'İlan başarıyla silindi'
-    });
-
-  } catch (error) {
-    console.error('İlan silme hatası:', error);
-    res.status(500).json({
-      success: false,
-      message: 'İlan silinirken bir hata oluştu',
       error: error.message
     });
   }
@@ -454,32 +526,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // Admin endpoint'leri
-router.delete('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { error } = await supabase
-      .from('listings')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      message: 'İlan başarıyla silindi'
-    });
-
-  } catch (error) {
-    console.error('İlan silme hatası:', error);
-    res.status(500).json({
-      success: false,
-      message: 'İlan silinirken bir hata oluştu',
-      error: error.message
-    });
-  }
-});
-
 router.put('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
