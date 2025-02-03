@@ -91,86 +91,67 @@ router.post('/login', async (req, res) => {
 // Register endpoint
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, username, phone } = req.body
+    const { username, email, password } = req.body;
 
-    // Gerekli alanları kontrol et
-    if (!email || !password || !username) {
+    // Email formatını kontrol et
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       return res.status(400).json({
         success: false,
-        message: 'Tüm alanları doldurun'
-      })
+        message: 'Geçerli bir email adresi giriniz'
+      });
     }
 
-    // Email kullanımda mı kontrol et
-    const { data: existingUser, error: checkError } = await supabase
+    // Kullanıcı zaten var mı kontrol et
+    const { data: existingUser, error: fetchError } = await supabase
       .from('users')
-      .select('id')
-      .eq('email', email)
-      .single()
+      .select()
+      .or(`email.eq.${email},username.eq.${username}`)
+      .single();
 
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Bu email adresi zaten kullanımda'
-      })
+        message: 'Bu email veya kullanıcı adı zaten kullanılıyor'
+      });
     }
 
     // Şifreyi hashle
-    const salt = await bcrypt.genSalt(10)
-    const hashedPassword = await bcrypt.hash(password, salt)
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Kullanıcıyı oluştur
     const { data: newUser, error } = await supabase
       .from('users')
       .insert([
         {
-          email,
-          password: hashedPassword,
           username,
-          phone: phone || null
+          email,
+          password: hashedPassword
         }
       ])
       .select()
-      .single()
+      .single();
 
-    if (error) {
-      throw error
-    }
+    if (error) throw error;
 
-    // JWT token oluştur ve otomatik login yap
-    const token = jwt.sign(
-      {
-        id: newUser.id,
-        email: newUser.email,
-        username: newUser.username
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    )
-
-    // Başarılı yanıt
     res.status(201).json({
       success: true,
       message: 'Kayıt başarılı',
       data: {
-        token,
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          username: newUser.username
-        }
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email
       }
-    })
+    });
 
   } catch (error) {
-    console.error('Kayıt hatası:', error)
+    console.error('Kayıt hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'Kayıt olurken bir hata oluştu',
+      message: 'Kayıt sırasında bir hata oluştu',
       error: error.message
-    })
+    });
   }
-})
+});
 
 // Logout endpoint
 router.post('/logout', authenticateToken, async (req, res) => {
@@ -253,5 +234,63 @@ router.get('/me', authenticateToken, async (req, res) => {
     })
   }
 })
+
+// Profil güncelleme endpoint'i
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // Kullanıcıyı bul
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Kullanıcı bulunamadı'
+      });
+    }
+
+    // Mevcut şifreyi kontrol et
+    const validPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!validPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mevcut şifre yanlış'
+      });
+    }
+
+    // Yeni şifreyi hashle
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Şifreyi güncelle
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        password: hashedPassword,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
+
+    res.json({
+      success: true,
+      message: 'Şifre başarıyla güncellendi'
+    });
+
+  } catch (error) {
+    console.error('Profil güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Profil güncellenirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
 
 export default router 
