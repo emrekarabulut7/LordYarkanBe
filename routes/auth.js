@@ -307,4 +307,73 @@ router.put('/listings/:id', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
+router.get('/users/admin', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    console.error('Kullanıcıları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Kullanıcılar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+router.put('/users/:id/admin', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, email, phone, role, password } = req.body;
+
+    // Güncelleme verilerini hazırla
+    const updateData = {
+      username,
+      email,
+      phone,
+      role,
+      updated_at: new Date().toISOString()
+    };
+
+    // Eğer yeni şifre varsa, hash'le ve ekle
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Şifreyi response'dan çıkar
+    const { password: _, ...userWithoutPassword } = user;
+
+    res.json({
+      success: true,
+      message: 'Kullanıcı başarıyla güncellendi',
+      data: userWithoutPassword
+    });
+  } catch (error) {
+    console.error('Kullanıcı güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Kullanıcı güncellenirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
 export default router 
