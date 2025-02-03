@@ -1,40 +1,19 @@
 # Dependencies
-node_modules/
+/node_modules
 
-# Environment files
+# Environment
 .env
 .env.*
 
-# System files
-.DS_Store
-*.log
-
-# IDE files
-.vscode/
-.idea/
-
-# Diğer dizinler
-../frontend/
-../../*
-../../../*
+# IDE
+/.vscode
+/.idea
 
 # Logs
-logs
 *.log
-npm-debug.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-
-# IDE
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
 
 # OS
-.DS_Store 
+.DS_Store
+
+# Parent directories
+../* 
