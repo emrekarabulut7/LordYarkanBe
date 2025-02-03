@@ -4,6 +4,69 @@ import { authenticateToken, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Aktif ve satılan ilanları getir (Bu endpoint'i üste alıyoruz)
+router.get('/active-and-sold', async (req, res) => {
+  try {
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(username)
+      `)
+      .in('status', ['active', 'sold']) // Aktif ve satılan ilanları getir
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    console.log('Aktif ve satılan ilanlar:', listings); // Debug için log
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('İlanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// Öne çıkan ilanları getir (Bu endpoint'i en üste alıyoruz)
+router.get('/featured', async (req, res) => {
+  try {
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(username)
+      `)
+      .eq('status', 'active') // Sadece aktif ilanları getir
+      .order('created_at', { ascending: false }) // En yeni ilanlar
+      .limit(6); // En fazla 6 ilan
+
+    if (error) throw error;
+
+    console.log('Öne çıkan ilanlar:', listings); // Debug için log ekleyelim
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('Öne çıkan ilanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
 // İlan oluşturma endpoint'i
 router.post('/create', authenticateToken, async (req, res) => {
   try {
@@ -75,7 +138,7 @@ router.post('/create', authenticateToken, async (req, res) => {
       console.log('Resim verisi bulunamadı')
     }
 
-    // İlanı oluştur
+    // İlanı 'pending' statüsüyle oluştur
     const { data: listing, error } = await supabase
       .from('listings')
       .insert([
@@ -90,7 +153,7 @@ router.post('/create', authenticateToken, async (req, res) => {
           phone,
           discord: discord || null,
           image_url,
-          status: 'active'
+          status: 'pending' // Varsayılan olarak beklemede
         }
       ])
       .select()
@@ -103,7 +166,7 @@ router.post('/create', authenticateToken, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'İlan başarıyla oluşturuldu',
+      message: 'İlan başarıyla oluşturuldu ve onay bekliyor',
       data: listing
     })
 
@@ -146,13 +209,10 @@ router.get('/my-listings', authenticateToken, async (req, res) => {
   }
 });
 
-// İlanları listele
-router.get('/', async (req, res) => {
+// İlanları listele (admin için tüm ilanları getir)
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    // 24 saat öncesinin tarihini hesapla
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-    const { data: listings, error } = await supabase
+    let query = supabase
       .from('listings')
       .select(`
         *,
@@ -161,10 +221,78 @@ router.get('/', async (req, res) => {
           email
         )
       `)
-      .gt('created_at', twentyFourHoursAgo) // Son 24 saatteki ilanları getir
+      .order('created_at', { ascending: false });
+
+    // Eğer admin değilse sadece aktif ilanları göster
+    if (req.user?.role !== 'admin') {
+      query = query.eq('status', 'active');
+    }
+
+    const { data: listings, error } = await query;
+
+    if (error) throw error;
+
+    // Admin için istatistikleri ekle
+    if (req.user?.role === 'admin') {
+      const stats = {
+        total: listings.length,
+        pending: listings.filter(l => l.status === 'pending').length,
+        active: listings.filter(l => l.status === 'active').length,
+        rejected: listings.filter(l => l.status === 'rejected').length,
+        sold: listings.filter(l => l.status === 'sold').length,
+        cancelled: listings.filter(l => l.status === 'cancelled').length
+      };
+
+      res.json({
+        success: true,
+        data: listings,
+        stats
+      });
+    } else {
+      res.json({
+        success: true,
+        data: listings
+      });
+    }
+
+  } catch (error) {
+    console.error('İlanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// Kullanıcının ilanlarını getir
+router.get('/user/:userId', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Kullanıcının kendi ilanlarını veya admin ise tüm ilanları görebilir
+    if (req.user.id !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Bu ilanları görüntüleme yetkiniz yok'
+      });
+    }
+
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(username)
+      `)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+
+    // Debug için log ekleyelim
+    console.log('Kullanıcı ID:', userId);
+    console.log('İstekte bulunan kullanıcı:', req.user);
+    console.log('Bulunan ilanlar:', listings);
 
     res.json({
       success: true,
@@ -181,7 +309,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Tekil ilan getir
+// Tekil ilan getir (En sona alıyoruz)
 router.get('/:id', async (req, res) => {
   try {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -407,45 +535,85 @@ router.put('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-// Kullanıcının ilanlarını getir
-router.get('/user/:userId', authenticateToken, async (req, res) => {
+// Admin onay endpoint'i
+router.put('/:id/approve', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { id } = req.params;
+    const { status } = req.body; // 'active' veya 'rejected'
 
-    // Kullanıcının kendi ilanlarını veya admin ise tüm ilanları görebilir
-    if (req.user.id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Bu ilanları görüntüleme yetkiniz yok'
-      });
-    }
-
-    const { data: listings, error } = await supabase
+    const { data: listing, error } = await supabase
       .from('listings')
-      .select(`
-        *,
-        user:users(username)
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) throw error;
 
-    // Debug için log ekleyelim
-    console.log('Kullanıcı ID:', userId);
-    console.log('İstekte bulunan kullanıcı:', req.user);
-    console.log('Bulunan ilanlar:', listings);
-
     res.json({
       success: true,
-      data: listings
+      message: `İlan ${status === 'active' ? 'onaylandı' : 'reddedildi'}`,
+      data: listing
     });
 
   } catch (error) {
-    console.error('İlanları getirme hatası:', error);
+    console.error('İlan onaylama hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu',
+      message: 'İlan onaylanırken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// İlan durumu güncelleme endpoint'i
+router.put('/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // İlanın kullanıcıya ait olduğunu kontrol et
+    const { data: listing, error: fetchError } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError || !listing) {
+      return res.status(404).json({
+        success: false,
+        message: 'İlan bulunamadı veya bu işlem için yetkiniz yok'
+      });
+    }
+
+    // Durumu güncelle
+    const { data: updatedListing, error: updateError } = await supabase
+      .from('listings')
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({
+      success: true,
+      message: 'İlan durumu güncellendi',
+      data: updatedListing
+    });
+
+  } catch (error) {
+    console.error('İlan durumu güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlan durumu güncellenirken bir hata oluştu',
       error: error.message
     });
   }
