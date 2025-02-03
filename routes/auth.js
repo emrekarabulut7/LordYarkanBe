@@ -49,12 +49,13 @@ router.post('/login', async (req, res) => {
       })
     }
 
-    // JWT token oluştur
+    // JWT token oluştur - role bilgisini ekle
     const token = jwt.sign(
       { 
         id: user.id,
         email: user.email,
-        username: user.username 
+        username: user.username,
+        role: user.role // role bilgisini token'a ekle
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
@@ -62,7 +63,7 @@ router.post('/login', async (req, res) => {
 
     console.log('Token oluşturuldu')
 
-    // Başarılı yanıt
+    // Başarılı yanıt - role bilgisini ekle
     res.json({
       success: true,
       message: 'Giriş başarılı',
@@ -71,7 +72,8 @@ router.post('/login', async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
-          username: user.username
+          username: user.username,
+          role: user.role
         }
       }
     })
@@ -234,5 +236,75 @@ router.get('/me', authenticateToken, async (req, res) => {
     })
   }
 })
+
+// Admin middleware ekle
+export const isAdmin = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Bu işlem için admin yetkisi gerekiyor'
+      });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Yetki kontrolü sırasında bir hata oluştu'
+    });
+  }
+};
+
+// Admin endpoint'leri
+router.delete('/listings/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: 'İlan başarıyla silindi'
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'İlan silinirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+router.put('/listings/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const { error } = await supabase
+      .from('listings')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: 'İlan başarıyla güncellendi'
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'İlan güncellenirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
 
 export default router 

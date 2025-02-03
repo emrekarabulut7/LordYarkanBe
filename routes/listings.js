@@ -1,6 +1,6 @@
 import express from 'express'
 import { supabase } from '../config/supabase.js'
-import { authenticateToken } from '../middleware/auth.js'
+import { authenticateToken, isAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -149,6 +149,9 @@ router.get('/my-listings', authenticateToken, async (req, res) => {
 // İlanları listele
 router.get('/', async (req, res) => {
   try {
+    // 24 saat öncesinin tarihini hesapla
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
     const { data: listings, error } = await supabase
       .from('listings')
       .select(`
@@ -158,28 +161,31 @@ router.get('/', async (req, res) => {
           email
         )
       `)
-      .order('created_at', { ascending: false })
+      .gt('created_at', twentyFourHoursAgo) // Son 24 saatteki ilanları getir
+      .order('created_at', { ascending: false });
 
-    if (error) throw error
+    if (error) throw error;
 
     res.json({
       success: true,
       data: listings
-    })
+    });
 
   } catch (error) {
-    console.error('İlanları getirme hatası:', error)
+    console.error('İlanları getirme hatası:', error);
     res.status(500).json({
       success: false,
       message: 'İlanlar getirilirken bir hata oluştu',
       error: error.message
-    })
+    });
   }
-})
+});
 
-// Tekil ilan getir - ÖNEMLİ: En sonda olmalı
+// Tekil ilan getir
 router.get('/:id', async (req, res) => {
   try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
     const { data: listing, error } = await supabase
       .from('listings')
       .select(`
@@ -191,30 +197,30 @@ router.get('/:id', async (req, res) => {
         )
       `)
       .eq('id', req.params.id)
-      .single()
+      .gt('created_at', twentyFourHoursAgo) // Son 24 saatteki ilanı getir
+      .single();
 
-    if (error) throw error
-    if (!listing) {
+    if (error || !listing) {
       return res.status(404).json({
         success: false,
-        message: 'İlan bulunamadı'
-      })
+        message: 'İlan bulunamadı veya süresi dolmuş'
+      });
     }
 
     res.json({
       success: true,
       data: listing
-    })
+    });
 
   } catch (error) {
-    console.error('İlan getirme hatası:', error)
+    console.error('İlan getirme hatası:', error);
     res.status(500).json({
       success: false,
       message: 'İlan getirilirken bir hata oluştu',
       error: error.message
-    })
+    });
   }
-})
+});
 
 // İlan silme route'u
 router.delete('/:id', authenticateToken, async (req, res) => {
@@ -302,6 +308,88 @@ router.put('/:id', authenticateToken, async (req, res) => {
       .single();
 
     if (updateError) throw updateError;
+
+    res.json({
+      success: true,
+      message: 'İlan başarıyla güncellendi',
+      data: updatedListing
+    });
+
+  } catch (error) {
+    console.error('İlan güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlan güncellenirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// Admin endpoint'leri
+router.delete('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: 'İlan başarıyla silindi'
+    });
+
+  } catch (error) {
+    console.error('İlan silme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlan silinirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+router.put('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // İlanı güncelle
+    const { error: updateError } = await supabase
+      .from('listings')
+      .update({
+        title: updateData.title,
+        description: updateData.description,
+        price: parseFloat(updateData.price),
+        server: updateData.server,
+        category: updateData.category,
+        status: updateData.status,
+        phone: updateData.phone,
+        discord: updateData.discord || null,
+        currency: updateData.currency,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    // Güncellenmiş ilanı getir
+    const { data: updatedListing, error: fetchError } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users (
+          username,
+          email
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
 
     res.json({
       success: true,
