@@ -93,41 +93,60 @@ router.post('/login', async (req, res) => {
 // Register endpoint
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, phone, password } = req.body;
 
-    // Email formatını kontrol et
-    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+    // Tüm alanların kontrolü
+    if (!email || !password || !username || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Geçerli bir email adresi giriniz'
+        message: 'Tüm alanlar gerekli'
       });
     }
 
-    // Kullanıcı zaten var mı kontrol et
-    const { data: existingUser, error: fetchError } = await supabase
+    // Email, kullanıcı adı ve telefon kontrolü
+    const { data: existingUser, error: existingError } = await supabase
       .from('users')
-      .select()
-      .or(`email.eq.${email},username.eq.${username}`)
-      .single();
+      .select('*')
+      .or(`email.eq.${email},username.eq.${username},phone.eq.${phone}`);
 
-    if (existingUser) {
+    if (existingUser?.length > 0) {
+      // Hangi alanın kullanımda olduğunu kontrol et
+      const existingEmail = existingUser.find(user => user.email === email);
+      const existingUsername = existingUser.find(user => user.username === username);
+      const existingPhone = existingUser.find(user => user.phone === phone);
+
+      let message = '';
+      if (existingEmail) message = 'Bu email adresi zaten kullanımda';
+      else if (existingUsername) message = 'Bu kullanıcı adı zaten kullanımda';
+      else if (existingPhone) message = 'Bu telefon numarası zaten kullanımda';
+
       return res.status(400).json({
         success: false,
-        message: 'Bu email veya kullanıcı adı zaten kullanılıyor'
+        message
       });
     }
 
-    // Şifreyi hashle
+    // Telefon numarası formatı kontrolü
+    if (!phone.match(/^[0-9]{11}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçerli bir telefon numarası giriniz (11 haneli)'
+      });
+    }
+
+    // Şifreyi hash'le
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Kullanıcıyı oluştur
-    const { data: newUser, error } = await supabase
+    // Kullanıcıyı kaydet
+    const { data: user, error } = await supabase
       .from('users')
       .insert([
         {
           username,
           email,
-          password: hashedPassword
+          phone,
+          password: hashedPassword,
+          role: 'user'
         }
       ])
       .select()
@@ -135,14 +154,9 @@ router.post('/register', async (req, res) => {
 
     if (error) throw error;
 
-    res.status(201).json({
+    res.json({
       success: true,
-      message: 'Kayıt başarılı',
-      data: {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email
-      }
+      message: 'Kayıt başarılı'
     });
 
   } catch (error) {

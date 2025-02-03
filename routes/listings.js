@@ -407,4 +407,48 @@ router.put('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
+// Kullanıcının ilanlarını getir
+router.get('/user/:userId', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Kullanıcının kendi ilanlarını veya admin ise tüm ilanları görebilir
+    if (req.user.id !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Bu ilanları görüntüleme yetkiniz yok'
+      });
+    }
+
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(username)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Debug için log ekleyelim
+    console.log('Kullanıcı ID:', userId);
+    console.log('İstekte bulunan kullanıcı:', req.user);
+    console.log('Bulunan ilanlar:', listings);
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('İlanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
 export default router 
