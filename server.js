@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import authRoutes from './routes/auth.js'
 import listingsRoutes from './routes/listings.js'
+import notificationsRoutes from './routes/notifications.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -32,6 +33,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }))
 // Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/listings', listingsRoutes)
+app.use('/api/notifications', notificationsRoutes)
 
 // Test route
 app.get('/api/test', (req, res) => {

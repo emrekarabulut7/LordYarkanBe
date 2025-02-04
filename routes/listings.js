@@ -581,29 +581,94 @@ router.put('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-// Admin onay endpoint'i
+// İlan onaylama endpoint'i
 router.put('/:id/approve', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // 'active' veya 'rejected'
+    const { status } = req.body;
 
-    const { data: listing, error } = await supabase
+    console.log('İlan onaylama başladı:', { id, status });
+
+    // Önce ilanı ve kullanıcı bilgisini al
+    const { data: listing, error: fetchError } = await supabase
+      .from('listings')
+      .select('*, user:users(*)')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('İlan getirme hatası:', fetchError);
+      throw fetchError;
+    }
+
+    console.log('İlan bulundu:', listing);
+
+    // İlanı güncelle
+    const { error: updateError } = await supabase
       .from('listings')
       .update({ 
         status,
         updated_at: new Date().toISOString()
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
 
-    if (error) throw error;
+    if (updateError) {
+      console.error('İlan güncelleme hatası:', updateError);
+      throw updateError;
+    }
 
-    res.json({
-      success: true,
-      message: `İlan ${status === 'active' ? 'onaylandı' : 'reddedildi'}`,
-      data: listing
-    });
+    // Bildirim oluştur
+    const notificationData = {
+      user_id: listing.user.id,
+      title: 'İlan Durumu Güncellendi',
+      message: status === 'active' 
+        ? 'İlanınız onaylandı ve yayına alındı!'
+        : 'İlanınız reddedildi. Lütfen düzenleyip tekrar deneyin.',
+      type: status === 'active' ? 'success' : 'warning',
+      read: false,
+      listing_id: id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('Bildirim verisi:', notificationData);
+
+    // Bildirim oluşturma işlemini ayrı bir try-catch bloğuna al
+    try {
+      const { data: notification, error: notifError } = await supabase
+        .from('notifications')
+        .insert([notificationData])
+        .select('*')
+        .single();
+
+      if (notifError) {
+        console.error('Bildirim oluşturma hatası:', notifError);
+        throw notifError;
+      }
+
+      console.log('Bildirim başarıyla oluşturuldu:', notification);
+
+      res.json({
+        success: true,
+        message: `İlan ${status === 'active' ? 'onaylandı' : 'reddedildi'}`,
+        data: {
+          ...listing,
+          status,
+          notification
+        }
+      });
+    } catch (notifError) {
+      // Bildirim oluşturma hatası olsa bile ana işlemi tamamla
+      console.error('Bildirim oluşturulamadı:', notifError);
+      res.json({
+        success: true,
+        message: `İlan ${status === 'active' ? 'onaylandı' : 'reddedildi'} (bildirim gönderilemedi)`,
+        data: {
+          ...listing,
+          status
+        }
+      });
+    }
 
   } catch (error) {
     console.error('İlan onaylama hatası:', error);
