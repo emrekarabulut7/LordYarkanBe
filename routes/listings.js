@@ -312,7 +312,7 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
 // Silinen ilanları getir
 router.get('/deleted', authenticateToken, isAdmin, async (req, res) => {
   try {
-    // Önce silinen ilanları getir
+    // Silinen ilanları getir
     const { data: deletedListings, error: listingsError } = await supabase
       .from('deleted_listings')
       .select()
@@ -320,25 +320,31 @@ router.get('/deleted', authenticateToken, isAdmin, async (req, res) => {
 
     if (listingsError) throw listingsError;
 
-    // Her ilan için silinen resimleri getir
-    const listingsWithImages = await Promise.all(deletedListings.map(async (listing) => {
-      const { data: images, error: imagesError } = await supabase
-        .from('deleted_images')
-        .select('image_url')
-        .eq('listing_id', listing.id)
-        .limit(1);
+    // Her ilan için kullanıcı bilgisini ayrıca getir
+    const listingsWithUsers = await Promise.all(deletedListings.map(async (listing) => {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', listing.user_id)
+        .single();
 
-      if (imagesError) throw imagesError;
+      if (userError) {
+        console.error('Kullanıcı bilgisi getirme hatası:', userError);
+        return {
+          ...listing,
+          username: 'Bilinmeyen Kullanıcı'
+        };
+      }
 
       return {
         ...listing,
-        image_url: images?.[0]?.image_url || listing.image_url
+        username: userData?.username || 'Bilinmeyen Kullanıcı'
       };
     }));
 
     res.json({
       success: true,
-      data: listingsWithImages
+      data: listingsWithUsers
     });
 
   } catch (error) {
