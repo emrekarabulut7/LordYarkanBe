@@ -78,7 +78,8 @@ router.post('/create', authenticateToken, async (req, res) => {
   try {
     const { 
       server, 
-      category, 
+      category,
+      listingType,
       title, 
       description, 
       price, 
@@ -90,7 +91,7 @@ router.post('/create', authenticateToken, async (req, res) => {
     } = req.body;
 
     // Temel alan kontrolleri
-    if (!server || !category || !title || !description || !price || !currency) {
+    if (!server || !category || !title || !description || !price || !currency || !listingType) {
       return res.status(400).json({
         success: false,
         message: 'Lütfen tüm zorunlu alanları doldurun'
@@ -112,6 +113,7 @@ router.post('/create', authenticateToken, async (req, res) => {
         user_id: req.user.id,
         server,
         category,
+        listing_type: listingType,
         title,
         description,
         price,
@@ -120,11 +122,15 @@ router.post('/create', authenticateToken, async (req, res) => {
         discord: contactType.includes('discord') ? discord : null,
         image_url: image,
         status: 'pending',
-        contact_type: contactType // array olarak gönderiliyor
+        contact_type: contactType
       }])
+      .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase hatası:', error);
+      throw error;
+    }
 
     res.json({
       success: true,
