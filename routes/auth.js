@@ -95,11 +95,36 @@ router.post('/register', async (req, res) => {
   try {
     const { username, email, phone, password } = req.body;
 
-    // Tüm alanların kontrolü
-    if (!email || !password || !username || !phone) {
+    // Telefon numarası validasyonu
+    const phoneRegex = /^05[0-9]{9}$/;  // 05 ile başlayan ve toplam 11 haneli
+    if (!phoneRegex.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: 'Tüm alanlar gerekli'
+        message: 'Telefon numarası 05 ile başlamalı ve 11 haneli olmalıdır'
+      });
+    }
+
+    // Email validasyonu
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçerli bir email adresi giriniz'
+      });
+    }
+
+    // Kullanıcı adı ve şifre kontrolü
+    if (!username || username.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'Kullanıcı adı en az 3 karakter olmalıdır'
+      });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Şifre en az 6 karakter olmalıdır'
       });
     }
 
@@ -123,14 +148,6 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({
         success: false,
         message
-      });
-    }
-
-    // Telefon numarası formatı kontrolü
-    if (!phone.match(/^[0-9]{11}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Geçerli bir telefon numarası giriniz (11 haneli)'
       });
     }
 

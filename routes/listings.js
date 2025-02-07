@@ -76,115 +76,71 @@ router.get('/featured', async (req, res) => {
 // İlan oluşturma endpoint'i
 router.post('/create', authenticateToken, async (req, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Kullanıcı girişi gerekli'
-      })
-    }
+    const { 
+      server, 
+      category, 
+      title, 
+      description, 
+      price, 
+      currency,
+      phone,
+      discord,
+      image,
+      contactType 
+    } = req.body;
 
-    const { server, category, title, description, price, currency, phone, discord, image } = req.body
-
-    // Zorunlu alanları kontrol et
-    if (!server || !category || !title || !description || !price || !phone) {
+    // Temel alan kontrolleri
+    if (!server || !category || !title || !description || !price || !currency) {
       return res.status(400).json({
         success: false,
         message: 'Lütfen tüm zorunlu alanları doldurun'
-      })
+      });
     }
 
-    let image_url = null
-    
-    // Eğer base64 resim varsa
-    if (image) {
-      try {
-        console.log('Resim yükleme başlıyor...')
-        
-        // Base64'ü buffer'a çevir
-        const base64Data = image.split(',')[1]
-        console.log('Base64 data uzunluğu:', base64Data?.length)
-        
-        const buffer = Buffer.from(base64Data, 'base64')
-        console.log('Buffer oluşturuldu, boyut:', buffer.length)
-        
-        // Rastgele dosya adı oluştur
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
-        console.log('Dosya adı:', fileName)
-        
-        // Resmi Supabase storage'a yükle
-        const { data: uploadData, error: uploadError } = await supabase
-          .storage
-          .from('listing-images')
-          .upload(fileName, buffer, {
-            contentType: 'image/jpeg',
-            cacheControl: '3600'
-          })
-
-        console.log('Upload yanıtı:', { uploadData, uploadError })
-
-        if (uploadError) {
-          console.error('Upload hatası:', uploadError)
-          throw uploadError
-        }
-
-        // Public URL'i al
-        const { data: urlData } = supabase
-          .storage
-          .from('listing-images')
-          .getPublicUrl(fileName)
-
-        console.log('Public URL:', urlData)
-        image_url = urlData.publicUrl
-
-        console.log('Resim yükleme başarılı:', image_url)
-      } catch (error) {
-        console.error('Resim yükleme detaylı hata:', error)
-      }
-    } else {
-      console.log('Resim verisi bulunamadı')
+    // İletişim bilgisi kontrolü
+    if (!contactType || !Array.isArray(contactType) || contactType.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lütfen bir iletişim yöntemi seçin'
+      });
     }
 
-    // İlanı 'pending' statüsüyle oluştur
+    // İlanı oluştur
     const { data: listing, error } = await supabase
       .from('listings')
-      .insert([
-        {
-          user_id: req.user.id,
-          server,
-          category,
-          title,
-          description,
-          price: parseFloat(price),
-          currency: currency || 'TRY',
-          phone,
-          discord: discord || null,
-          image_url,
-          status: 'pending' // Varsayılan olarak beklemede
-        }
-      ])
-      .select()
-      .single()
+      .insert([{
+        user_id: req.user.id,
+        server,
+        category,
+        title,
+        description,
+        price,
+        currency,
+        phone: contactType.includes('whatsapp') ? phone : null,
+        discord: contactType.includes('discord') ? discord : null,
+        image_url: image,
+        status: 'pending',
+        contact_type: contactType // array olarak gönderiliyor
+      }])
+      .single();
 
-    if (error) {
-      console.error('İlan oluşturma DB hatası:', error)
-      throw error
-    }
+    if (error) throw error;
 
-    res.status(201).json({
+    res.json({
       success: true,
-      message: 'İlan başarıyla oluşturuldu ve onay bekliyor',
+      message: 'İlan başarıyla oluşturuldu',
       data: listing
-    })
+    });
 
   } catch (error) {
-    console.error('İlan oluşturma hatası:', error)
+    console.error('İlan oluşturma hatası:', error);
     res.status(500).json({
       success: false,
       message: 'İlan oluşturulurken bir hata oluştu',
       error: error.message
-    })
+    });
   }
-})
+});
 
 // Kullanıcının kendi ilanlarını getirme route'u
 router.get('/my-listings', authenticateToken, async (req, res) => {
