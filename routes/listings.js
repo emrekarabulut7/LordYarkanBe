@@ -1,6 +1,7 @@
 import express from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticateToken, isAdmin } from '../middleware/auth.js'
+import { cleanupExpiredListings } from '../jobs/listingCleanup.js'
 
 const router = express.Router()
 
@@ -431,26 +432,39 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Tekil ilan getir (En sona alıyoruz)
+// Tekil ilan getirme endpoint'i
 router.get('/:id', async (req, res) => {
   try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { id } = req.params;
 
+    // İlanı getir
     const { data: listing, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:users (
-          username,
-          email,
-          phone
-        )
+        user:users(username)
       `)
-      .eq('id', req.params.id)
-      .gt('created_at', twentyFourHoursAgo) // Son 24 saatteki ilanı getir
+      .eq('id', id)
       .single();
 
-    if (error || !listing) {
+    if (error) throw error;
+
+    if (!listing) {
+      return res.status(404).json({
+        success: false,
+        message: 'İlan bulunamadı veya süresi dolmuş'
+      });
+    }
+
+    // İlanın süresini kontrol et
+    const createdAt = new Date(listing.created_at);
+    const now = new Date();
+    const diffInHours = Math.abs(now - createdAt) / 36e5; // Saat cinsinden fark
+
+    if (diffInHours >= 24) {
+      // İlan süresi dolmuşsa silme işlemini başlat
+      await cleanupExpiredListings();
+      
       return res.status(404).json({
         success: false,
         message: 'İlan bulunamadı veya süresi dolmuş'

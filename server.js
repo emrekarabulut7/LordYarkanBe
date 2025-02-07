@@ -6,6 +6,7 @@ import { dirname } from 'path'
 import authRoutes from './routes/auth.js'
 import listingsRoutes from './routes/listings.js'
 import notificationsRoutes from './routes/notifications.js'
+import { cleanupExpiredListings } from './jobs/listingCleanup.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -49,6 +50,12 @@ app.use((err, req, res, next) => {
     error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
   })
 })
+
+// Her saat başı kontrol et
+setInterval(cleanupExpiredListings, 60 * 60 * 1000);
+
+// İlk çalıştırma
+cleanupExpiredListings();
 
 // Vercel için handler
 export default app
