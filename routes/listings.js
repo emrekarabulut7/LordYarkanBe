@@ -36,9 +36,11 @@ router.get('/active-and-sold', async (req, res) => {
   }
 });
 
-// Öne çıkan ilanları getir (Bu endpoint'i en üste alıyoruz)
+// Öne çıkan ilanları getir
 router.get('/featured', async (req, res) => {
   try {
+    console.log('Öne çıkan ilanlar getiriliyor...'); // Debug log
+
     const { data: listings, error } = await supabase
       .from('listings')
       .select(`
@@ -49,9 +51,12 @@ router.get('/featured', async (req, res) => {
       .order('created_at', { ascending: false }) // En yeni ilanlar
       .limit(6); // En fazla 6 ilan
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase hatası:', error);
+      throw error;
+    }
 
-    console.log('Öne çıkan ilanlar:', listings); // Debug için log ekleyelim
+    console.log('Bulunan ilanlar:', listings); // Debug log
 
     res.json({
       success: true,
@@ -742,6 +747,94 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'İlan durumu güncellenirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// Admin silme endpoint'i
+router.delete('/:id/admin', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('İlan silme isteği:', id);
+
+    // Önce ilanı ve kullanıcı bilgisini al
+    const { data: listing, error: fetchError } = await supabase
+      .from('listings')
+      .select('*, user:users(*)')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('İlan getirme hatası:', fetchError);
+      throw fetchError;
+    }
+
+    // Silinmiş ilanlar tablosuna ekle
+    const { error: archiveError } = await supabase
+      .from('deleted_listings')
+      .insert([{
+        original_id: listing.id,
+        user_id: listing.user_id,
+        title: listing.title,
+        description: listing.description,
+        category: listing.category,
+        server: listing.server,
+        price: listing.price,
+        currency: listing.currency,
+        phone: listing.phone,
+        discord: listing.discord,
+        image_url: listing.image_url,
+        status: 'deleted',
+        created_at: listing.created_at,
+        updated_at: listing.updated_at,
+        deleted_at: new Date().toISOString(),
+        deleted_by: req.user.id // Admin ID'si
+      }]);
+
+    if (archiveError) {
+      console.error('Arşivleme hatası:', archiveError);
+      throw archiveError;
+    }
+
+    // İlanı sil
+    const { error: deleteError } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Silme hatası:', deleteError);
+      throw deleteError;
+    }
+
+    // Kullanıcıya bildirim gönder
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: listing.user_id,
+        title: 'İlanınız Silindi',
+        message: `"${listing.title}" başlıklı ilanınız admin tarafından silindi.`,
+        type: 'warning',
+        read: false,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (notifError) {
+      console.error('Bildirim hatası:', notifError);
+    }
+
+    res.json({
+      success: true,
+      message: 'İlan başarıyla silindi',
+      data: listing
+    });
+
+  } catch (error) {
+    console.error('İlan silme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlan silinirken bir hata oluştu',
       error: error.message
     });
   }
