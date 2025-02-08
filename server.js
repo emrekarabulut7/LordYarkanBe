@@ -19,15 +19,21 @@ const port = process.env.PORT || 5000
 const corsOptions = {
   origin: [
     'https://www.lordyarkan.com',
-    'https://lordyarkan.com'
+    'https://lordyarkan.com',
+    'http://localhost:3000'  // development için
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  maxAge: 86400 // CORS preflight cache süresi - 24 saat
 };
 
 // CORS ayarları
 app.use(cors(corsOptions))
+
+// OPTIONS istekleri için özel handler
+app.options('*', cors(corsOptions));
 
 // Middleware
 app.use(express.json({ limit: '10mb' }))
