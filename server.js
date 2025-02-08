@@ -16,20 +16,18 @@ dotenv.config()
 const app = express()
 const port = process.env.PORT || 5000
 
-// CORS ayarları
-app.use(cors({
+const corsOptions = {
   origin: [
-    'https://lord-yarkan-fe.vercel.app',
-    'http://localhost:3000',
-    'http://www.lordyarkan.com',
     'https://www.lordyarkan.com',
-    'http://lordyarkan.com',
     'https://lordyarkan.com'
   ],
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}))
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// CORS ayarları
+app.use(cors(corsOptions))
 
 // Middleware
 app.use(express.json({ limit: '10mb' }))
