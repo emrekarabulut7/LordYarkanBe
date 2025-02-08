@@ -47,6 +47,16 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
+// Cache kontrolü middleware'i
+app.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/listings', listingsRoutes)
