@@ -19,6 +19,8 @@ const port = process.env.PORT || 5000
 // CORS ayarları
 app.use(cors({
   origin: [
+    'https://lordyarkan.com',
+    'http://lordyarkan.com',
     'https://lord-yarkan-fe.vercel.app',
     'http://localhost:3000'
   ],
