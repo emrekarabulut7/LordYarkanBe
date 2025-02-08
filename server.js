@@ -20,20 +20,28 @@ const corsOptions = {
   origin: [
     'https://www.lordyarkan.com',
     'https://lordyarkan.com',
-    'http://localhost:3000'  // development için
+    'http://localhost:3000'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
-  maxAge: 86400 // CORS preflight cache süresi - 24 saat
+  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 
 // CORS ayarları
-app.use(cors(corsOptions))
+app.use(cors(corsOptions));
 
-// OPTIONS istekleri için özel handler
+// Tüm rotalar için OPTIONS isteklerini handle et
 app.options('*', cors(corsOptions));
+
+// Redirect middleware'i ekle
+app.use((req, res, next) => {
+  if (req.hostname === 'lordyarkan.com') {
+    return res.redirect(301, `https://www.lordyarkan.com${req.originalUrl}`);
+  }
+  next();
+});
 
 // Middleware
 app.use(express.json({ limit: '10mb' }))
