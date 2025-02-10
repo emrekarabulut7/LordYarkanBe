@@ -18,22 +18,41 @@ exports.createListing = async (req, res) => {
       }
 
       try {
-        console.log('Request body:', req.body);
-        console.log('Request user:', req.user);
+        // Kullanıcının aktif ilan sayısını kontrol et
+        const { data: activeListings, error: countError } = await supabase
+          .from('listings')
+          .select('id, status')
+          .eq('user_id', req.user.id)
+          .eq('status', 'active');
+
+        if (countError) throw countError;
+
+        // Kesin kontrol
+        const activeCount = activeListings?.length || 0;
+        
+        if (activeCount >= 5) {
+          return res.status(403).json({
+            success: false,
+            message: 'Maximum ilan sayısına ulaştınız (5/5). Yeni ilan vermek için lütfen eski ilanlarınızdan birini silin veya kapatın.',
+            activeCount
+          });
+        }
 
         // İlanı veritabanına kaydet
         const { data: listing, error: insertError } = await supabase
           .from('listings')
           .insert({
-            user_id: req.user.id, // auth.uid() ile eşleşmeli
+            user_id: req.user.id,
             server: req.body.server,
             category: req.body.category,
+            listing_type: req.body.listingType,
             title: req.body.title,
             description: req.body.description,
             price: parseFloat(req.body.price),
             currency: req.body.currency,
             phone: req.body.phone,
             discord: req.body.discord || null,
+            contact_type: req.body.contactType,
             status: 'active',
             created_at: new Date().toISOString()
           })
@@ -46,21 +65,20 @@ exports.createListing = async (req, res) => {
         }
 
         // Görsel varsa yükle
-        if (req.file) {
-          const fileBuffer = req.file.buffer;
-          const fileExt = req.file.originalname.split('.').pop();
-          const fileName = `${listing.id}.${fileExt}`;
+        if (req.body.image) {
+          const base64Data = req.body.image.split(',')[1];
+          const buffer = Buffer.from(base64Data, 'base64');
+          const fileName = `${listing.id}.jpg`;
           
           const { error: uploadError } = await supabase.storage
             .from('listing-images')
-            .upload(`images/${fileName}`, fileBuffer, {
-              contentType: req.file.mimetype,
+            .upload(`images/${fileName}`, buffer, {
+              contentType: 'image/jpeg',
               upsert: true
             });
 
           if (uploadError) {
             console.error('Görsel yükleme hatası:', uploadError);
-            // Görsel yükleme hatası olsa bile ilanı kaydet
           } else {
             // Görsel URL'ini güncelle
             const { data: { publicUrl } } = supabase.storage
@@ -80,7 +98,8 @@ exports.createListing = async (req, res) => {
 
         res.status(201).json({
           success: true,
-          data: listing
+          data: listing,
+          message: 'İlan başarıyla oluşturuldu'
         });
 
       } catch (error) {
@@ -122,6 +141,34 @@ exports.getListings = async (req, res) => {
 
   } catch (error) {
     console.error('İlanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Kullanıcının ilanlarını getir
+// @route   GET /api/listings/user/:userId
+// @access  Private
+exports.getUserListings = async (req, res) => {
+  try {
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('user_id', req.params.userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('Kullanıcı ilanları getirme hatası:', error);
     res.status(500).json({
       success: false,
       message: 'İlanlar getirilirken bir hata oluştu',
