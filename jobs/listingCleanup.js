@@ -6,7 +6,7 @@ export const cleanupExpiredListings = async () => {
 
     // 24 saat önce oluşturulan ilanları bul
     const expirationDate = new Date();
-    expirationDate.setHours(expirationDate.getHours() - 24);
+    expirationDate.setHours(expirationDate.getHours() - 2400);
 
     console.log('Kontrol tarihi:', expirationDate.toISOString());
 
