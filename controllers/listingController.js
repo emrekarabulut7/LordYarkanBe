@@ -33,8 +33,7 @@ exports.createListing = async (req, res) => {
         if (activeCount >= 5) {
           return res.status(403).json({
             success: false,
-            message: 'Maximum ilan sayısına ulaştınız (5/5). Yeni ilan vermek için lütfen eski ilanlarınızdan birini silin veya kapatın.',
-            activeCount
+            message: 'Maximum ilan limitine ulaştınız (5/5). Yeni ilan vermek için lütfen eski ilanlarınızdan birini silin veya kapatın.'
           });
         }
 
@@ -172,6 +171,68 @@ exports.getUserListings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+};
+
+// @desc    İlan onaylama/reddetme
+// @route   PUT /api/listings/:id/approve
+// @access  Admin
+exports.approveListing = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Eğer onaylama işlemi ise aktif ilan sayısını kontrol et
+    if (status === 'active') {
+      // Önce ilanın sahibini bul
+      const { data: listing, error: listingError } = await supabase
+        .from('listings')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+
+      if (listingError) throw listingError;
+
+      // Kullanıcının aktif ilan sayısını kontrol et
+      const { data: activeListings, error: countError } = await supabase
+        .from('listings')
+        .select('id')
+        .eq('user_id', listing.user_id)
+        .eq('status', 'active');
+
+      if (countError) throw countError;
+
+      if (activeListings?.length >= 5) {
+        return res.status(403).json({
+          success: false,
+          message: 'Maximum ilan limitine ulaştınız (5/5). Yeni ilan vermek için lütfen eski ilanlarınızdan birini silin veya kapatın.'
+        });
+      }
+    }
+
+    // İlanı güncelle
+    const { data, error } = await supabase
+      .from('listings')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data,
+      message: `İlan başarıyla ${status === 'active' ? 'onaylandı' : 'reddedildi'}`
+    });
+
+  } catch (error) {
+    console.error('İlan onaylama hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlan onaylanırken bir hata oluştu',
       error: error.message
     });
   }
