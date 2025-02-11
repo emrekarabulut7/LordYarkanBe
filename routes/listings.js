@@ -8,30 +8,30 @@ const router = express.Router()
 // Aktif ve satılan ilanları getir (Bu endpoint'i üste alıyoruz)
 router.get('/active-and-sold', async (req, res) => {
   try {
-    const { data: listings, error } = await supabase
+    const { data, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:users(username)
+        user:user_id (
+          id,
+          username
+        )
       `)
-      .in('status', ['active', 'sold']) // Aktif ve satılan ilanları getir
+      .in('status', ['active', 'sold']) // Sadece active ve sold durumundaki ilanları getir
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    console.log('Aktif ve satılan ilanlar:', listings); // Debug için log
-
     res.json({
       success: true,
-      data: listings
+      data
     });
 
   } catch (error) {
     console.error('İlanları getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu',
-      error: error.message
+      message: 'İlanlar getirilirken bir hata oluştu'
     });
   }
 });
@@ -78,72 +78,112 @@ router.post('/create', authenticateToken, async (req, res) => {
   try {
     const { 
       server, 
-      category,
-      listingType,
+      category, 
+      listingType, 
       title, 
       description, 
       price, 
-      currency,
-      phone,
-      discord,
-      image,
+      currency, 
+      phone, 
+      discord, 
+      images, 
       contactType 
     } = req.body;
 
-    // Temel alan kontrolleri
-    if (!server || !category || !title || !description || !price || !currency || !listingType) {
-      return res.status(400).json({
-        success: false,
-        message: 'Lütfen tüm zorunlu alanları doldurun'
-      });
+    // Supabase storage'a resimleri yükle
+    const imageUrls = [];
+    for (const imageBase64 of images) {
+      const { data, error } = await supabase.storage
+        .from('listing-images')
+        .upload(
+          `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`,
+          Buffer.from(imageBase64.split(',')[1], 'base64'),
+          {
+            contentType: 'image/jpeg',
+            cacheControl: '3600',
+            upsert: false
+          }
+        );
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('listing-images')
+        .getPublicUrl(data.path);
+
+      imageUrls.push(publicUrl);
     }
 
-    // İletişim bilgisi kontrolü
-    if (!contactType || !Array.isArray(contactType) || contactType.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Lütfen bir iletişim yöntemi seçin'
-      });
-    }
-
-    // İlanı oluştur
-    const { data: listing, error } = await supabase
+    // Veritabanına kaydet - status'u 'pending' olarak ayarla
+    const { data, error } = await supabase
       .from('listings')
-      .insert([{
-        user_id: req.user.id,
-        server,
-        category,
-        listing_type: listingType,
-        title,
-        description,
-        price,
-        currency,
-        phone: contactType.includes('whatsapp') ? phone : null,
-        discord: contactType.includes('discord') ? discord : null,
-        image_url: image,
-        status: 'pending',
-        contact_type: contactType
-      }])
+      .insert([
+        {
+          user_id: req.user.id,
+          server,
+          category,
+          listing_type: listingType,
+          title,
+          description,
+          price,
+          currency,
+          phone,
+          discord,
+          images: imageUrls,
+          contact_type: contactType,
+          status: 'pending' // İlan durumunu 'pending' olarak ayarla
+        }
+      ])
       .select()
       .single();
 
-    if (error) {
-      console.error('Supabase hatası:', error);
-      throw error;
+    if (error) throw error;
+
+    // Admin'e bildirim gönder
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: null, // Admin bildirimi olduğunu belirtmek için null
+        title: 'Yeni İlan Onay Bekliyor',
+        message: `"${title}" başlıklı yeni bir ilan onay bekliyor.`,
+        type: 'admin',
+        read: false,
+        listing_id: data.id,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (notifError) {
+      console.error('Admin bildirimi oluşturma hatası:', notifError);
+    }
+
+    // Kullanıcıya bildirim gönder
+    const { error: userNotifError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: req.user.id,
+        title: 'İlanınız İnceleniyor',
+        message: 'İlanınız admin onayına gönderildi. Onaylandıktan sonra yayınlanacaktır.',
+        type: 'info',
+        read: false,
+        listing_id: data.id,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (userNotifError) {
+      console.error('Kullanıcı bildirimi oluşturma hatası:', userNotifError);
     }
 
     res.json({
       success: true,
-      message: 'İlan başarıyla oluşturuldu',
-      data: listing
+      message: 'İlan başarıyla oluşturuldu ve admin onayına gönderildi',
+      data
     });
 
   } catch (error) {
     console.error('İlan oluşturma hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlan oluşturulurken bir hata oluştu',
-      error: error.message
+      message: error.message || 'İlan oluşturulurken bir hata oluştu'
     });
   }
 });
