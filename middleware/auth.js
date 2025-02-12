@@ -37,8 +37,9 @@ export const authenticateToken = async (req, res, next) => {
       })
     }
 
-    // Kullanıcı bilgilerini request'e ekle
-    req.user = user
+    // Şifreyi çıkar
+    const { password, ...userWithoutPassword } = user
+    req.user = userWithoutPassword
     next()
 
   } catch (error) {

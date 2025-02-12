@@ -9,86 +9,73 @@ const router = express.Router()
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body
-    console.log('Login isteği:', { email }) // Şifreyi loglamıyoruz
+    const { email, password } = req.body;
+    console.log('Login isteği:', { email });
 
     // Email ve şifre kontrolü
     if (!email || !password) {
       return res.status(400).json({
         success: false,
         message: 'Email ve şifre gerekli'
-      })
+      });
     }
 
     // Kullanıcıyı Supabase'den bul
-    console.log('Supabase sorgusu başlıyor...')
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
-      .single()
-
-    console.log('Supabase yanıtı:', { user, error })
+      .single();
 
     if (error || !user) {
-      console.log('Kullanıcı bulunamadı hatası:', error)
       return res.status(401).json({
         success: false,
         message: 'Kullanıcı bulunamadı'
-      })
+      });
     }
 
     // Şifre kontrolü
-    const validPassword = await bcrypt.compare(password, user.password)
-    console.log('Şifre kontrolü:', { validPassword })
+    const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
       return res.status(401).json({
         success: false,
         message: 'Geçersiz şifre'
-      })
+      });
     }
 
-    // JWT token oluştur - role bilgisini ekle
+    // JWT token oluştur
     const token = jwt.sign(
       { 
         id: user.id,
         email: user.email,
         username: user.username,
-        role: user.role // role bilgisini token'a ekle
+        role: user.role 
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
-    )
+    );
 
-    console.log('Token oluşturuldu')
+    // Şifreyi response'dan çıkar
+    const { password: _, ...userWithoutPassword } = user;
 
-    // Başarılı yanıt - role bilgisini ekle
     res.json({
       success: true,
       message: 'Giriş başarılı',
       data: {
         token,
-        user: {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          role: user.role
-        }
+        user: userWithoutPassword
       }
-    })
+    });
 
   } catch (error) {
-    console.error('Login hatası detayı:', error)
-    console.error('Stack trace:', error.stack)
+    console.error('Login hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'Giriş yapılırken bir hata oluştu',
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    })
+      message: 'Giriş yapılırken bir hata oluştu'
+    });
   }
-})
+});
 
 // Register endpoint
 router.post('/register', async (req, res) => {
@@ -403,6 +390,21 @@ router.put('/users/:id/admin', authenticateToken, isAdmin, async (req, res) => {
       success: false,
       message: 'Kullanıcı güncellenirken bir hata oluştu',
       error: error.message
+    });
+  }
+});
+
+// Token doğrulama endpoint'i
+router.get('/verify', authenticateToken, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      user: req.user
+    });
+  } catch (error) {
+    res.status(403).json({
+      success: false,
+      message: 'Geçersiz token'
     });
   }
 });
