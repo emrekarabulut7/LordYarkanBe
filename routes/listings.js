@@ -284,33 +284,15 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcının ilanlarını getir
-router.get('/user/:userId', authenticateToken, async (req, res) => {
+router.get('/user/:id', authenticateToken, async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    // Kullanıcının kendi ilanlarını veya admin ise tüm ilanları görebilir
-    if (req.user.id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Bu ilanları görüntüleme yetkiniz yok'
-      });
-    }
-
     const { data: listings, error } = await supabase
       .from('listings')
-      .select(`
-        *,
-        user:users(username)
-      `)
-      .eq('user_id', userId)
+      .select('*')  // images kolonu zaten listings tablosunda var
+      .eq('user_id', req.params.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
-    // Debug için log ekleyelim
-    console.log('Kullanıcı ID:', userId);
-    console.log('İstekte bulunan kullanıcı:', req.user);
-    console.log('Bulunan ilanlar:', listings);
 
     res.json({
       success: true,
@@ -318,7 +300,6 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('İlanları getirme hatası:', error);
     res.status(500).json({
       success: false,
       message: 'İlanlar getirilirken bir hata oluştu',
