@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 
+<<<<<<< HEAD
 # Environment files
 .env
 .env.*
@@ -17,6 +18,13 @@ node_modules/
 ../frontend/
 ../../*
 ../../../*
+=======
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+>>>>>>> fd935fb (emre007)
 
 # Logs
 logs
