@@ -6,7 +6,7 @@ import { dirname } from 'path'
 import authRoutes from './routes/auth.js'
 import listingsRoutes from './routes/listings.js'
 import notificationsRoutes from './routes/notifications.js'
-import { cleanupExpiredListings } from './jobs/listingCleanup.js'
+import { listingCleanupJob, startListingCleanupJob } from './jobs/listingCleanup.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -78,10 +78,10 @@ app.use((err, req, res, next) => {
 })
 
 // Her saat başı kontrol et
-setInterval(cleanupExpiredListings, 60 * 60 * 1000);
+setInterval(listingCleanupJob, 60 * 60 * 1000);
 
 // İlk çalıştırma
-cleanupExpiredListings();
+startListingCleanupJob();
 
 // Vercel için handler
 export default app

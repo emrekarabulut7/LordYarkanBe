@@ -1,7 +1,7 @@
 import express from 'express'
 import { supabase } from '../config/supabase.js'
 import { authenticateToken, isAdmin } from '../middleware/auth.js'
-import { cleanupExpiredListings } from '../jobs/listingCleanup.js'
+import { listingCleanupJob } from '../jobs/listingCleanup.js'
 
 const router = express.Router()
 
@@ -485,7 +485,7 @@ router.get('/:id', async (req, res) => {
 
     if (diffInHours >= 24) {
       // İlan süresi dolmuşsa silme işlemini başlat
-      await cleanupExpiredListings();
+      await listingCleanupJob();
       
       return res.status(404).json({
         success: false,
