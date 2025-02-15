@@ -89,6 +89,7 @@ export default app
 // Local development için
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
-    console.log(`Server ${port} portunda çalışıyor`)
+    console.log(`✨ Backend server is running on port ${port}`)
+    console.log('🚀 Test deployment successful!')
   })
 } 
