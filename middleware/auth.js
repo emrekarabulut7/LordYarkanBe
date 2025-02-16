@@ -20,7 +20,7 @@ export const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     console.log('Decoded token:', decoded) // Debug için
 
-    // Kullanıcı bilgilerini getir
+    // Kullanıcıyı veritabanından kontrol et
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -31,7 +31,7 @@ export const authenticateToken = async (req, res, next) => {
     console.log('User error:', error) // Debug için
 
     if (error || !user) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
         message: 'Geçersiz token'
       })
@@ -43,8 +43,8 @@ export const authenticateToken = async (req, res, next) => {
     next()
 
   } catch (error) {
-    console.error('Auth hatası:', error)
-    return res.status(403).json({
+    console.error('Token doğrulama hatası:', error)
+    return res.status(401).json({
       success: false,
       message: 'Geçersiz token'
     })
