@@ -41,6 +41,33 @@ app.get('/api/listings/active-and-sold', (req, res) => {
   })
 })
 
+// Featured listings route
+app.get('/api/listings/featured', (req, res) => {
+  res.json({
+    success: true,
+    data: [
+      {
+        id: 1,
+        title: 'Öne Çıkan İlan 1',
+        description: 'Test açıklama 1',
+        price: 100,
+        currency: 'TL',
+        status: 'active',
+        featured: true
+      },
+      {
+        id: 2,
+        title: 'Öne Çıkan İlan 2',
+        description: 'Test açıklama 2',
+        price: 200,
+        currency: 'TL',
+        status: 'active',
+        featured: true
+      }
+    ]
+  });
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
