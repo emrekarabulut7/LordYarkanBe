@@ -32,7 +32,7 @@ app.use((req, res, next) => {
 
 // CORS ayarları
 app.use(cors({
-  origin: ['https://www.lordyarkan.com', 'https://lordyarkan.com'],
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
