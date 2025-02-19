@@ -43,6 +43,7 @@ router.get('/featured', async (req, res) => {
   try {
     console.log('Öne çıkan ilanlar getiriliyor...')
 
+    // Önce tüm aktif ilanları getir
     const { data, error } = await supabase
       .from('listings')
       .select(`
@@ -52,7 +53,6 @@ router.get('/featured', async (req, res) => {
           avatar_url
         )
       `)
-      .eq('is_featured', true)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(6)
@@ -70,7 +70,8 @@ router.get('/featured', async (req, res) => {
     const formattedData = data.map(listing => ({
       ...listing,
       images: listing.images || [],
-      user: listing.user || null
+      user: listing.user || null,
+      is_featured: listing.is_featured || false // Varsayılan değer ekle
     }))
 
     return res.status(200).json({
