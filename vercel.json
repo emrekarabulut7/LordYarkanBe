@@ -15,7 +15,10 @@
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Accept, Authorization",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Credentials": "true"
+        "Access-Control-Allow-Credentials": "true",
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        "Expires": "-1",
+        "Pragma": "no-cache"
       }
     }
   ],
