@@ -7,14 +7,14 @@ import authRoutes from './routes/auth.js'
 import listingsRoutes from './routes/listings.js'
 import notificationsRoutes from './routes/notifications.js'
 import { listingCleanupJob, startListingCleanupJob } from './jobs/listingCleanup.js'
+import app from './app.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 dotenv.config()
 
-const app = express()
-const port = process.env.PORT || 5000
+const PORT = process.env.PORT || 5000
 
 const corsOptions = {
   origin: [
@@ -88,7 +88,7 @@ export default app
 
 // Local development için
 if (process.env.NODE_ENV !== 'production') {
-  app.listen(port, () => {
-    console.log(`Server ${port} portunda çalışıyor`)
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
   })
 } 

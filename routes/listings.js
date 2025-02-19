@@ -228,57 +228,24 @@ router.get('/my-listings', authenticateToken, async (req, res) => {
 });
 
 // İlanları listele (admin için tüm ilanları getir)
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    let query = supabase
+    const { data: listings, error } = await supabase
       .from('listings')
-      .select(`
-        *,
-        user:users (
-          username,
-          email
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
-
-    // Eğer admin değilse sadece aktif ilanları göster
-    if (req.user?.role !== 'admin') {
-      query = query.eq('status', 'active');
-    }
-
-    const { data: listings, error } = await query;
 
     if (error) throw error;
 
-    // Admin için istatistikleri ekle
-    if (req.user?.role === 'admin') {
-      const stats = {
-        total: listings.length,
-        pending: listings.filter(l => l.status === 'pending').length,
-        active: listings.filter(l => l.status === 'active').length,
-        rejected: listings.filter(l => l.status === 'rejected').length,
-        sold: listings.filter(l => l.status === 'sold').length,
-        cancelled: listings.filter(l => l.status === 'cancelled').length
-      };
-
-      res.json({
-        success: true,
-        data: listings,
-        stats
-      });
-    } else {
-      res.json({
-        success: true,
-        data: listings
-      });
-    }
-
+    res.json({
+      success: true,
+      data: listings
+    });
   } catch (error) {
     console.error('İlanları getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu',
-      error: error.message
+      message: 'İlanlar getirilirken bir hata oluştu'
     });
   }
 });
