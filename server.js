@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5000
 
 // CORS ayarları
 app.use(cors({
-  origin: '*',
+  origin: ['https://www.lordyarkan.com', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   credentials: true
@@ -30,14 +30,14 @@ app.options('*', cors());
 app.use(express.json())
 
 // Routes
-app.use('/api/auth', authRoutes)
-app.use('/api/listings', listingsRoutes)
-app.use('/api/notifications', notificationsRoutes)
+app.use('/api', authRoutes)
+app.use('/api', listingsRoutes)
+app.use('/api', notificationsRoutes)
 
-// Test route
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'API çalışıyor' })
-})
+// Base path için yönlendirme
+app.get('/', (req, res) => {
+  res.json({ message: 'API çalışıyor' });
+});
 
 // Redirect www to non-www
 app.use((req, res, next) => {
