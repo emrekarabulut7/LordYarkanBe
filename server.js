@@ -51,9 +51,9 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/listings', listingsRoutes)
-app.use('/auth', authRoutes)
-app.use('/notifications', notificationsRoutes)
+app.use('/api/auth', authRoutes)
+app.use('/api/listings', listingsRoutes)
+app.use('/api/notifications', notificationsRoutes)
 
 // Test route
 app.get('/api/test', (req, res) => {
