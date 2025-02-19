@@ -36,12 +36,12 @@ app.use(cors());
 app.use(express.json())
 
 // Routes
-app.use('/api', authRoutes)
-app.use('/api', listingsRoutes)
-app.use('/api', notificationsRoutes)
+app.use('/', authRoutes)
+app.use('/', listingsRoutes)
+app.use('/', notificationsRoutes)
 
 // Test route
-app.get('/api/test', (req, res) => {
+app.get('/test', (req, res) => {
   res.json({ message: 'API çalışıyor' });
 });
 
