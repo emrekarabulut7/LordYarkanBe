@@ -6,7 +6,7 @@ import { listingCleanupJob } from '../jobs/listingCleanup.js'
 const router = express.Router()
 
 // Aktif ve satılan ilanları getir (Bu endpoint'i üste alıyoruz)
-router.get('/active-and-sold', async (req, res) => {
+router.get('/listings/active-and-sold', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('listings')
@@ -39,7 +39,7 @@ router.get('/active-and-sold', async (req, res) => {
 });
 
 // Öne çıkan ilanları getir
-router.get('/featured', async (req, res) => {
+router.get('/listings/featured', async (req, res) => {
   try {
     console.log('Öne çıkan ilanlar getiriliyor...')
 

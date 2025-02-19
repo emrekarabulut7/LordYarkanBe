@@ -42,9 +42,19 @@ app.use('/api', authRoutes)
 app.use('/api', listingsRoutes)
 app.use('/api', notificationsRoutes)
 
-// Base path için yönlendirme
-app.get('/', (req, res) => {
+// Test route
+app.get('/api/test', (req, res) => {
   res.json({ message: 'API çalışıyor' });
+});
+
+// 404 handler
+app.use((req, res) => {
+  console.log('404 - Route not found:', req.originalUrl);
+  res.status(404).json({
+    success: false,
+    message: 'Route bulunamadı',
+    path: req.originalUrl
+  });
 });
 
 // Error handler
