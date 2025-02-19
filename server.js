@@ -31,7 +31,11 @@ app.use((req, res, next) => {
 });
 
 // CORS ayarları
-app.use(cors());
+app.use(cors({
+  origin: ['https://www.lordyarkan.com', 'https://lordyarkan.com'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
 
 app.use(express.json())
 
