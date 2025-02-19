@@ -16,26 +16,22 @@ dotenv.config()
 const app = express()
 const port = process.env.PORT || 5000
 
+// CORS ayarları
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN.split(','),
+  origin: [
+    'http://localhost:3000',
+    'https://lordyarkan.com',
+    'https://www.lordyarkan.com'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-// CORS ayarları
 app.use(cors(corsOptions));
 
 // Tüm rotalar için OPTIONS isteklerini handle et
 app.options('*', cors(corsOptions));
-
-// Redirect middleware'i ekle
-app.use((req, res, next) => {
-  if (req.hostname === 'lordyarkan.com') {
-    return res.redirect(301, `https://www.lordyarkan.com${req.originalUrl}`);
-  }
-  next();
-});
 
 // Middleware
 app.use(express.json({ limit: '10mb' }))
@@ -46,7 +42,10 @@ app.use((req, res, next) => {
   res.set({
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
     'Pragma': 'no-cache',
-    'Expires': '0'
+    'Expires': '0',
+    'Access-Control-Allow-Origin': corsOptions.origin,
+    'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
   });
   next();
 });

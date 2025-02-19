@@ -8,30 +8,57 @@ const router = express.Router()
 // Aktif ve satılan ilanları getir (Bu endpoint'i üste alıyoruz)
 router.get('/active-and-sold', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    console.log('Active and sold listings isteği alındı');
+
+    // Active listings
+    const { data: activeListings, error: activeError } = await supabase
       .from('listings')
       .select(`
         *,
-        user:user_id (
-          id,
-          username
-        )
+        user:users(username, avatar_url)
       `)
-      .in('status', ['active', 'sold']) // Sadece active ve sold durumundaki ilanları getir
+      .eq('status', 'active')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (activeError) {
+      console.error('Active listings hatası:', activeError);
+      throw activeError;
+    }
+
+    // Sold listings
+    const { data: soldListings, error: soldError } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(username, avatar_url)
+      `)
+      .eq('status', 'sold')
+      .order('updated_at', { ascending: false })
+      .limit(10);
+
+    if (soldError) {
+      console.error('Sold listings hatası:', soldError);
+      throw soldError;
+    }
+
+    console.log('Listings başarıyla alındı:', {
+      active: activeListings?.length,
+      sold: soldListings?.length
+    });
 
     res.json({
       success: true,
-      data
+      data: {
+        active: activeListings || [],
+        sold: soldListings || []
+      }
     });
-
   } catch (error) {
-    console.error('İlanları getirme hatası:', error);
+    console.error('Listings genel hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu'
+      message: 'İlanlar alınırken bir hata oluştu',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
