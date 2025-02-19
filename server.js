@@ -31,14 +31,7 @@ app.use((req, res, next) => {
 });
 
 // CORS ayarları
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-}));
-
-// OPTIONS istekleri için preflight handler
-app.options('*', cors());
+app.use(cors());
 
 app.use(express.json())
 
@@ -54,7 +47,6 @@ app.get('/api/test', (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
-  console.log('404 - Route not found:', req.originalUrl);
   res.status(404).json({
     success: false,
     message: 'Route bulunamadı',
