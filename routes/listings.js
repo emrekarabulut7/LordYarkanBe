@@ -427,55 +427,53 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Tekil ilan getirme endpoint'i
-router.get('/:id', async (req, res) => {
+// İlan detaylarını getir
+router.get('/listings/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // İlanı getir
-    const { data: listing, error } = await supabase
+    const { data, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:users(username)
+        user:user_id (
+          username,
+          avatar_url
+        )
       `)
       .eq('id', id)
       .single();
 
-    if (error) throw error;
-
-    if (!listing) {
-      return res.status(404).json({
+    if (error) {
+      console.error('Supabase hatası:', error);
+      return res.status(500).json({
         success: false,
-        message: 'İlan bulunamadı veya süresi dolmuş'
+        message: 'İlan detayları getirilirken bir hata oluştu',
+        error: error.message
       });
     }
 
-    // İlanın süresini kontrol et
-    const createdAt = new Date(listing.created_at);
-    const now = new Date();
-    const diffInHours = Math.abs(now - createdAt) / 36e5; // Saat cinsinden fark
-
-    if (diffInHours >= 24) {
-      // İlan süresi dolmuşsa silme işlemini başlat
-      await listingCleanupJob();
-      
+    if (!data) {
       return res.status(404).json({
         success: false,
-        message: 'İlan bulunamadı veya süresi dolmuş'
+        message: 'İlan bulunamadı'
       });
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      data: listing
+      data: {
+        ...data,
+        images: data.images || [],
+        user: data.user || null
+      }
     });
 
   } catch (error) {
-    console.error('İlan getirme hatası:', error);
-    res.status(500).json({
+    console.error('Server hatası:', error);
+    return res.status(500).json({
       success: false,
-      message: 'İlan getirilirken bir hata oluştu',
+      message: 'Sunucu hatası',
       error: error.message
     });
   }
