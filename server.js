@@ -18,12 +18,25 @@ const PORT = process.env.PORT || 5000
 
 // CORS ayarları
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://www.lordyarkan.com'
-  ],
-  credentials: true
-}))
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://www.lordyarkan.com',
+      'https://lordyarkan.com'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(null, false);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(express.json())
 
@@ -36,6 +49,14 @@ app.use('/api/notifications', notificationsRoutes)
 app.get('/api/test', (req, res) => {
   res.json({ message: 'API çalışıyor' })
 })
+
+// Redirect www to non-www
+app.use((req, res, next) => {
+  if (req.hostname.startsWith('www.')) {
+    return res.redirect(301, `https://lordyarkan.com${req.originalUrl}`);
+  }
+  next();
+});
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -57,7 +78,7 @@ startListingCleanupJob()
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log('Environment:', process.env.NODE_ENV)
-  console.log('CORS origins:', ['http://localhost:3000', 'https://www.lordyarkan.com'])
+  console.log('CORS origins:', ['http://localhost:3000', 'https://www.lordyarkan.com', 'https://lordyarkan.com'])
 })
 
 export default app 
