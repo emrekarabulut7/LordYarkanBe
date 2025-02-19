@@ -1,5 +1,5 @@
 import express from 'express'
-import { supabase } from '../config/supabase.js'
+import { supabase } from '../config/supabaseClient.js'
 import { authenticateToken, isAdmin } from '../middleware/auth.js'
 import { listingCleanupJob } from '../jobs/listingCleanup.js'
 
@@ -41,37 +41,52 @@ router.get('/active-and-sold', async (req, res) => {
 // Öne çıkan ilanları getir
 router.get('/featured', async (req, res) => {
   try {
+    console.log('Öne çıkan ilanlar getiriliyor...')
+
     const { data, error } = await supabase
       .from('listings')
-      .select('*')
+      .select(`
+        *,
+        user:user_id (
+          username,
+          avatar_url
+        )
+      `)
       .eq('is_featured', true)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
-      .limit(6);
+      .limit(6)
 
     if (error) {
-      console.error('Supabase hatası:', error);
+      console.error('Supabase hatası:', error)
       return res.status(500).json({
         success: false,
         message: 'Öne çıkan ilanlar getirilirken bir hata oluştu',
         error: error.message
-      });
+      })
     }
+
+    // Veriyi düzenle
+    const formattedData = data.map(listing => ({
+      ...listing,
+      images: listing.images || [],
+      user: listing.user || null
+    }))
 
     return res.status(200).json({
       success: true,
-      data: data || []
-    });
+      data: formattedData
+    })
 
   } catch (error) {
-    console.error('Server hatası:', error);
+    console.error('Server hatası:', error)
     return res.status(500).json({
       success: false,
       message: 'Sunucu hatası',
       error: error.message
-    });
+    })
   }
-});
+})
 
 // İlan oluşturma endpoint'i
 router.post('/create', authenticateToken, async (req, res) => {

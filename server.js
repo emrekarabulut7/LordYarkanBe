@@ -7,55 +7,25 @@ import authRoutes from './routes/auth.js'
 import listingsRoutes from './routes/listings.js'
 import notificationsRoutes from './routes/notifications.js'
 import { listingCleanupJob, startListingCleanupJob } from './jobs/listingCleanup.js'
-import app from './app.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 dotenv.config()
 
+const app = express()
 const PORT = process.env.PORT || 5000
 
-const corsOptions = {
-  origin: [
-    'https://www.lordyarkan.com',
-    'https://lordyarkan.com',
-    'http://localhost:3000'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-};
-
 // CORS ayarları
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://www.lordyarkan.com'
+  ],
+  credentials: true
+}))
 
-// Tüm rotalar için OPTIONS isteklerini handle et
-app.options('*', cors(corsOptions));
-
-// Redirect middleware'i ekle
-app.use((req, res, next) => {
-  if (req.hostname === 'lordyarkan.com') {
-    return res.redirect(301, `https://www.lordyarkan.com${req.originalUrl}`);
-  }
-  next();
-});
-
-// Middleware
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ limit: '10mb', extended: true }))
-
-// Cache kontrolü middleware'i
-app.use((req, res, next) => {
-  res.set({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0'
-  });
-  next();
-});
+app.use(express.json())
 
 // Routes
 app.use('/api/auth', authRoutes)
@@ -78,17 +48,16 @@ app.use((err, req, res, next) => {
 })
 
 // Her saat başı kontrol et
-setInterval(listingCleanupJob, 60 * 60 * 1000);
+setInterval(listingCleanupJob, 60 * 60 * 1000)
 
 // İlk çalıştırma
-startListingCleanupJob();
+startListingCleanupJob()
 
-// Vercel için handler
-export default app
+// Server'ı başlat
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
+  console.log('Environment:', process.env.NODE_ENV)
+  console.log('CORS origins:', ['http://localhost:3000', 'https://www.lordyarkan.com'])
+})
 
-// Local development için
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
-  })
-} 
+export default app 
