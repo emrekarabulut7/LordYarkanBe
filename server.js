@@ -18,9 +18,15 @@ const PORT = process.env.PORT || 5000
 
 // Cache kontrolü middleware
 app.use((req, res, next) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.set('Expires', '-1');
-  res.set('Pragma', 'no-cache');
+  // API endpoint'lerine göre cache süresini ayarla
+  const cacheDuration = req.path.includes('/listings/') ? 300 : 0; // 5 dakika
+  
+  if (cacheDuration > 0) {
+    res.set('Cache-Control', `public, max-age=${cacheDuration}, s-maxage=${cacheDuration}`);
+  } else {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  }
+  
   next();
 });
 
