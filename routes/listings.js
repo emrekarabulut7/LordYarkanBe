@@ -10,28 +10,30 @@ router.get('/active-and-sold', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('listings')
-      .select(`
-        *,
-        user:user_id (
-          id,
-          username
-        )
-      `)
-      .in('status', ['active', 'sold']) // Sadece active ve sold durumundaki ilanları getir
+      .select('*')
+      .in('status', ['active', 'sold'])
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase hatası:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'İlanlar getirilirken bir hata oluştu',
+        error: error.message
+      });
+    }
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      data
+      data: data || []
     });
 
   } catch (error) {
-    console.error('İlanları getirme hatası:', error);
-    res.status(500).json({
+    console.error('Server hatası:', error);
+    return res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu'
+      message: 'Sunucu hatası',
+      error: error.message
     });
   }
 });
@@ -39,45 +41,33 @@ router.get('/active-and-sold', async (req, res) => {
 // Öne çıkan ilanları getir
 router.get('/featured', async (req, res) => {
   try {
-    const { data: listings, error } = await supabase
+    const { data, error } = await supabase
       .from('listings')
-      .select(`
-        *,
-        user:user_id (
-          id,
-          username
-        )
-      `)
-      .eq('status', 'active') // Sadece aktif ilanları getir
-      .order('created_at', { ascending: false }) // En yeni ilanlar
-      .limit(6); // En fazla 6 ilan
+      .select('*')
+      .eq('is_featured', true)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(6);
 
     if (error) {
       console.error('Supabase hatası:', error);
-      throw error;
+      return res.status(500).json({
+        success: false,
+        message: 'Öne çıkan ilanlar getirilirken bir hata oluştu',
+        error: error.message
+      });
     }
 
-    // Her ilanın resimlerini normalize et ve kullanıcı bilgilerini ekle
-    const normalizedListings = listings.map(listing => {
-      // Eğer images array'i varsa onu kullan, yoksa image_url'i array içinde döndür
-      const normalizedImages = listing.images || [listing.image_url];
-      
-      return {
-        ...listing,
-        images: normalizedImages.filter(Boolean) // null veya undefined değerleri filtrele
-      };
-    });
-
-    res.json({
+    return res.status(200).json({
       success: true,
-      data: normalizedListings
+      data: data || []
     });
 
   } catch (error) {
-    console.error('Öne çıkan ilanları getirme hatası:', error);
-    res.status(500).json({
+    console.error('Server hatası:', error);
+    return res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu',
+      message: 'Sunucu hatası',
       error: error.message
     });
   }
