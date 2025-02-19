@@ -18,25 +18,14 @@ const PORT = process.env.PORT || 5000
 
 // CORS ayarları
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'https://www.lordyarkan.com',
-      'https://lordyarkan.com'
-    ];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(null, false);
-    }
-    return callback(null, true);
-  },
-  credentials: true,
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true
 }));
+
+// OPTIONS istekleri için preflight handler
+app.options('*', cors());
 
 app.use(express.json())
 
