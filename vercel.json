@@ -8,12 +8,14 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "src": "/api/(.*)",
+      "dest": "server.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "https://www.lordyarkan.com",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Authorization",
+        "Access-Control-Allow-Credentials": "true"
+      }
     }
-  ],
-  "env": {
-    "SUPABASE_URL": "https://gdovzovzzfdmjyhldwch.supabase.co",
-    "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkb3Z6b3Z6emZkbWp5aGxkd2NoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc3MTA0NjIsImV4cCI6MjA1MzI4NjQ2Mn0.qNCvA_-dJQL5Cc4bwnV9Nwup5TEuwBMtXpC14cZhJWY"
-  }
+  ]
 } 

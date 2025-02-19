@@ -1,93 +1,87 @@
 import express from 'express'
-import { supabase } from '../config/supabaseClient.js'
+import { supabase } from '../config/supabase.js'
 import { authenticateToken, isAdmin } from '../middleware/auth.js'
 import { listingCleanupJob } from '../jobs/listingCleanup.js'
 
 const router = express.Router()
 
 // Aktif ve satılan ilanları getir (Bu endpoint'i üste alıyoruz)
-router.get('/listings/active-and-sold', async (req, res) => {
+router.get('/active-and-sold', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('listings')
-      .select('*')
-      .in('status', ['active', 'sold'])
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase hatası:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'İlanlar getirilirken bir hata oluştu',
-        error: error.message
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: data || []
-    });
-
-  } catch (error) {
-    console.error('Server hatası:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Sunucu hatası',
-      error: error.message
-    });
-  }
-});
-
-// Öne çıkan ilanları getir
-router.get('/listings/featured', async (req, res) => {
-  try {
-    console.log('Öne çıkan ilanlar getiriliyor...')
-
-    // Önce tüm aktif ilanları getir
     const { data, error } = await supabase
       .from('listings')
       .select(`
         *,
         user:user_id (
-          username,
-          avatar_url
+          id,
+          username
         )
       `)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(6)
+      .in('status', ['active', 'sold']) // Sadece active ve sold durumundaki ilanları getir
+      .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Supabase hatası:', error)
-      return res.status(500).json({
-        success: false,
-        message: 'Öne çıkan ilanlar getirilirken bir hata oluştu',
-        error: error.message
-      })
-    }
+    if (error) throw error;
 
-    // Veriyi düzenle
-    const formattedData = data.map(listing => ({
-      ...listing,
-      images: listing.images || [],
-      user: listing.user || null,
-      is_featured: listing.is_featured || false // Varsayılan değer ekle
-    }))
-
-    return res.status(200).json({
+    res.json({
       success: true,
-      data: formattedData
-    })
+      data
+    });
 
   } catch (error) {
-    console.error('Server hatası:', error)
-    return res.status(500).json({
+    console.error('İlanları getirme hatası:', error);
+    res.status(500).json({
       success: false,
-      message: 'Sunucu hatası',
-      error: error.message
-    })
+      message: 'İlanlar getirilirken bir hata oluştu'
+    });
   }
-})
+});
+
+// Öne çıkan ilanları getir
+router.get('/featured', async (req, res) => {
+  try {
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:user_id (
+          id,
+          username
+        )
+      `)
+      .eq('status', 'active') // Sadece aktif ilanları getir
+      .order('created_at', { ascending: false }) // En yeni ilanlar
+      .limit(6); // En fazla 6 ilan
+
+    if (error) {
+      console.error('Supabase hatası:', error);
+      throw error;
+    }
+
+    // Her ilanın resimlerini normalize et ve kullanıcı bilgilerini ekle
+    const normalizedListings = listings.map(listing => {
+      // Eğer images array'i varsa onu kullan, yoksa image_url'i array içinde döndür
+      const normalizedImages = listing.images || [listing.image_url];
+      
+      return {
+        ...listing,
+        images: normalizedImages.filter(Boolean) // null veya undefined değerleri filtrele
+      };
+    });
+
+    res.json({
+      success: true,
+      data: normalizedListings
+    });
+
+  } catch (error) {
+    console.error('Öne çıkan ilanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
+    });
+  }
+});
 
 // İlan oluşturma endpoint'i
 router.post('/create', authenticateToken, async (req, res) => {
@@ -234,24 +228,57 @@ router.get('/my-listings', authenticateToken, async (req, res) => {
 });
 
 // İlanları listele (admin için tüm ilanları getir)
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { data: listings, error } = await supabase
+    let query = supabase
       .from('listings')
-      .select('*')
+      .select(`
+        *,
+        user:users (
+          username,
+          email
+        )
+      `)
       .order('created_at', { ascending: false });
+
+    // Eğer admin değilse sadece aktif ilanları göster
+    if (req.user?.role !== 'admin') {
+      query = query.eq('status', 'active');
+    }
+
+    const { data: listings, error } = await query;
 
     if (error) throw error;
 
-    res.json({
-      success: true,
-      data: listings
-    });
+    // Admin için istatistikleri ekle
+    if (req.user?.role === 'admin') {
+      const stats = {
+        total: listings.length,
+        pending: listings.filter(l => l.status === 'pending').length,
+        active: listings.filter(l => l.status === 'active').length,
+        rejected: listings.filter(l => l.status === 'rejected').length,
+        sold: listings.filter(l => l.status === 'sold').length,
+        cancelled: listings.filter(l => l.status === 'cancelled').length
+      };
+
+      res.json({
+        success: true,
+        data: listings,
+        stats
+      });
+    } else {
+      res.json({
+        success: true,
+        data: listings
+      });
+    }
+
   } catch (error) {
     console.error('İlanları getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu'
+      message: 'İlanlar getirilirken bir hata oluştu',
+      error: error.message
     });
   }
 });
@@ -427,53 +454,55 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// İlan detaylarını getir
-router.get('/listings/:id', async (req, res) => {
+// Tekil ilan getirme endpoint'i
+router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    // İlanı getir
+    const { data: listing, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:user_id (
-          username,
-          avatar_url
-        )
+        user:users(username)
       `)
       .eq('id', id)
       .single();
 
-    if (error) {
-      console.error('Supabase hatası:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'İlan detayları getirilirken bir hata oluştu',
-        error: error.message
-      });
-    }
+    if (error) throw error;
 
-    if (!data) {
+    if (!listing) {
       return res.status(404).json({
         success: false,
-        message: 'İlan bulunamadı'
+        message: 'İlan bulunamadı veya süresi dolmuş'
       });
     }
 
-    return res.status(200).json({
+    // İlanın süresini kontrol et
+    const createdAt = new Date(listing.created_at);
+    const now = new Date();
+    const diffInHours = Math.abs(now - createdAt) / 36e5; // Saat cinsinden fark
+
+    if (diffInHours >= 24) {
+      // İlan süresi dolmuşsa silme işlemini başlat
+      await listingCleanupJob();
+      
+      return res.status(404).json({
+        success: false,
+        message: 'İlan bulunamadı veya süresi dolmuş'
+      });
+    }
+
+    res.json({
       success: true,
-      data: {
-        ...data,
-        images: data.images || [],
-        user: data.user || null
-      }
+      data: listing
     });
 
   } catch (error) {
-    console.error('Server hatası:', error);
-    return res.status(500).json({
+    console.error('İlan getirme hatası:', error);
+    res.status(500).json({
       success: false,
-      message: 'Sunucu hatası',
+      message: 'İlan getirilirken bir hata oluştu',
       error: error.message
     });
   }

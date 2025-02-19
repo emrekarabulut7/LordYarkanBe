@@ -1,7 +1,7 @@
-import express from 'express';
-import cors from 'cors';
-import authRoutes from './routes/auth.js';
-import listingsRoutes from './routes/listings.js';
+const express = require('express');
+const cors = require('cors');
+const authRoutes = require('./routes/authRoutes');
+const listingRoutes = require('./routes/listingRoutes');
 
 const app = express();
 
@@ -12,11 +12,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/listings', listingsRoutes);
+app.use('/api/listings', listingRoutes);
 
 // Test route
 app.get('/test', (req, res) => {
   res.json({ message: 'API is working' });
 });
 
-export default app; 
+module.exports = app; 

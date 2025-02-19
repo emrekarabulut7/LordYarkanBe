@@ -39,7 +39,4 @@ pids
 # Diğer dizinler
 ../frontend/
 ../../*
-../../../*
-
-# Vercel
-.vercel 
+../../../* 
