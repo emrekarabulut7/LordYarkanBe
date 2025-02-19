@@ -39,14 +39,6 @@ app.get('/', (req, res) => {
   res.json({ message: 'API çalışıyor' });
 });
 
-// Redirect www to non-www
-app.use((req, res, next) => {
-  if (req.hostname.startsWith('www.')) {
-    return res.redirect(301, `https://lordyarkan.com${req.originalUrl}`);
-  }
-  next();
-});
-
 // Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err)
