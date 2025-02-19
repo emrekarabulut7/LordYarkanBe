@@ -8,57 +8,30 @@ const router = express.Router()
 // Aktif ve satılan ilanları getir (Bu endpoint'i üste alıyoruz)
 router.get('/active-and-sold', async (req, res) => {
   try {
-    console.log('Active and sold listings isteği alındı');
-
-    // Active listings
-    const { data: activeListings, error: activeError } = await supabase
+    const { data, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:users(username, avatar_url)
+        user:user_id (
+          id,
+          username
+        )
       `)
-      .eq('status', 'active')
+      .in('status', ['active', 'sold']) // Sadece active ve sold durumundaki ilanları getir
       .order('created_at', { ascending: false });
 
-    if (activeError) {
-      console.error('Active listings hatası:', activeError);
-      throw activeError;
-    }
-
-    // Sold listings
-    const { data: soldListings, error: soldError } = await supabase
-      .from('listings')
-      .select(`
-        *,
-        user:users(username, avatar_url)
-      `)
-      .eq('status', 'sold')
-      .order('updated_at', { ascending: false })
-      .limit(10);
-
-    if (soldError) {
-      console.error('Sold listings hatası:', soldError);
-      throw soldError;
-    }
-
-    console.log('Listings başarıyla alındı:', {
-      active: activeListings?.length,
-      sold: soldListings?.length
-    });
+    if (error) throw error;
 
     res.json({
       success: true,
-      data: {
-        active: activeListings || [],
-        sold: soldListings || []
-      }
+      data
     });
+
   } catch (error) {
-    console.error('Listings genel hatası:', error);
+    console.error('İlanları getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlanlar alınırken bir hata oluştu',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'İlanlar getirilirken bir hata oluştu'
     });
   }
 });
@@ -481,40 +454,42 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Tekil ilan detayı getirme
+// Tekil ilan getirme endpoint'i
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Aranan ilan ID:', id);
 
+    // İlanı getir
     const { data: listing, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:user_id (
-          id,
-          username
-        )
+        user:users(username)
       `)
       .eq('id', id)
       .single();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     if (!listing) {
       return res.status(404).json({
         success: false,
-        message: 'İlan bulunamadı'
+        message: 'İlan bulunamadı veya süresi dolmuş'
       });
     }
 
-    // Status kontrolünü daha esnek yap
-    if (listing.status && listing.status !== 'active' && listing.status !== 'pending' && listing.status !== 'sold') {
+    // İlanın süresini kontrol et
+    const createdAt = new Date(listing.created_at);
+    const now = new Date();
+    const diffInHours = Math.abs(now - createdAt) / 36e5; // Saat cinsinden fark
+
+    if (diffInHours >= 24) {
+      // İlan süresi dolmuşsa silme işlemini başlat
+      await listingCleanupJob();
+      
       return res.status(404).json({
         success: false,
-        message: 'İlan aktif değil'
+        message: 'İlan bulunamadı veya süresi dolmuş'
       });
     }
 
@@ -524,10 +499,11 @@ router.get('/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('İlan detayı getirme hatası:', error);
+    console.error('İlan getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlan detayları alınırken bir hata oluştu'
+      message: 'İlan getirilirken bir hata oluştu',
+      error: error.message
     });
   }
 });
