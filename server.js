@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5000
 
 // CORS ayarları
 app.use(cors({
-  origin: ['https://www.lordyarkan.com', 'http://localhost:3000'],
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   credentials: true
