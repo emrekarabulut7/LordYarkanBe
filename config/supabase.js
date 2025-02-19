@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
+
 dotenv.config()
 
 // Debug için environment variables'ları kontrol et
@@ -14,21 +15,23 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+export const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
   }
-})
+)
 
 // Test connection
-supabase.from('listings').select('count', { count: 'exact' })
+supabase.from('users').select('count', { count: 'exact' })
   .then(({ count, error }) => {
     if (error) {
       console.error('Supabase bağlantı hatası:', error)
     } else {
-      console.log('Supabase bağlantısı başarılı, toplam ilan sayısı:', count)
+      console.log('Supabase bağlantısı başarılı, toplam kullanıcı sayısı:', count)
     }
-  })
-
-export { supabase } 
+  }) 

@@ -17,16 +17,10 @@ const app = express()
 const port = process.env.PORT || 5000
 
 const corsOptions = {
-  origin: [
-    'https://www.lordyarkan.com',
-    'https://lordyarkan.com',
-    'http://localhost:3000'
-  ],
+  origin: process.env.CORS_ORIGIN.split(','),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 // CORS ayarları
