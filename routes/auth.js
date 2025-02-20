@@ -409,4 +409,68 @@ router.get('/verify', authenticateToken, async (req, res) => {
   }
 });
 
+// Google giriş endpoint'i
+router.post('/google', async (req, res) => {
+  try {
+    const {
+      id,
+      email,
+      username,
+      avatar_url,
+      provider,
+      provider_id,
+      full_name
+    } = req.body;
+
+    // Kullanıcıyı kaydet veya güncelle
+    const { data: user, error } = await supabase
+      .from('users')
+      .upsert({
+        id,
+        email,
+        username,
+        avatar_url,
+        provider,
+        provider_id,
+        last_sign_in: new Date().toISOString(),
+        status: 'active',
+        full_name,
+        role: 'user'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // JWT token oluştur
+    const token = jwt.sign(
+      { 
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Google giriş başarılı',
+      data: {
+        token,
+        user
+      }
+    });
+
+  } catch (error) {
+    console.error('Google giriş hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Google giriş sırasında bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
 export default router 
