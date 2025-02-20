@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Bildirimleri getir
+// Tüm bildirimleri getir
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { data: notifications, error } = await supabase
@@ -24,13 +24,37 @@ router.get('/', authenticateToken, async (req, res) => {
     console.error('Bildirim getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'Bildirimler getirilirken bir hata oluştu',
-      error: error.message
+      message: 'Bildirimler alınırken bir hata oluştu'
     });
   }
 });
 
-// Bildirimi okundu olarak işaretle
+// Tüm bildirimleri okundu olarak işaretle
+router.post('/mark-all-read', authenticateToken, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', req.user.id)
+      .eq('read', false);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: 'Tüm bildirimler okundu olarak işaretlendi'
+    });
+
+  } catch (error) {
+    console.error('Bildirim güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bildirimler güncellenirken bir hata oluştu'
+    });
+  }
+});
+
+// Tek bir bildirimi okundu olarak işaretle
 router.put('/:id/read', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -49,33 +73,10 @@ router.put('/:id/read', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Bildirim güncelleme hatası:', error);
     res.status(500).json({
       success: false,
       message: 'Bildirim güncellenirken bir hata oluştu'
-    });
-  }
-});
-
-// Tüm bildirimleri okundu olarak işaretle
-router.put('/read-all', authenticateToken, async (req, res) => {
-  try {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', req.user.id)
-      .eq('read', false);
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      message: 'Tüm bildirimler okundu olarak işaretlendi'
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Bildirimler güncellenirken bir hata oluştu'
     });
   }
 });
