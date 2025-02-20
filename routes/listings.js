@@ -454,44 +454,33 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Tekil ilan getirme endpoint'i
+// Tekil ilan detayını getir
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // İlanı getir
     const { data: listing, error } = await supabase
       .from('listings')
       .select(`
         *,
-        user:users(username)
+        user:user_id (
+          id,
+          username,
+          avatar_url
+        )
       `)
       .eq('id', id)
       .single();
 
-    if (error) throw error;
-
-    if (!listing) {
+    if (error || !listing) {
       return res.status(404).json({
         success: false,
         message: 'İlan bulunamadı veya süresi dolmuş'
       });
     }
 
-    // İlanın süresini kontrol et
-    const createdAt = new Date(listing.created_at);
-    const now = new Date();
-    const diffInHours = Math.abs(now - createdAt) / 36e5; // Saat cinsinden fark
-
-    if (diffInHours >= 24) {
-      // İlan süresi dolmuşsa silme işlemini başlat
-      await listingCleanupJob();
-      
-      return res.status(404).json({
-        success: false,
-        message: 'İlan bulunamadı veya süresi dolmuş'
-      });
-    }
+    // Görüntülenme sayacını kaldıralım şimdilik
+    // İleride eklenebilir
 
     res.json({
       success: true,
@@ -499,10 +488,10 @@ router.get('/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('İlan getirme hatası:', error);
+    console.error('İlan detayı getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlan getirilirken bir hata oluştu',
+      message: 'İlan detayı getirilirken bir hata oluştu',
       error: error.message
     });
   }
