@@ -284,26 +284,39 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcının ilanlarını getir
-router.get('/user/:id', authenticateToken, async (req, res) => {
+router.get('/user-listings/:userId', async (req, res) => {
   try {
-    const { data: listings, error } = await supabase
+    const { userId } = req.params;
+    const { exclude, limit = 3 } = req.query;
+
+    let query = supabase
       .from('listings')
-      .select('*')  // images kolonu zaten listings tablosunda var
-      .eq('user_id', req.params.id)
+      .select('*')
+      .eq('user_id', userId)
+      .in('status', ['active', 'sold'])
       .order('created_at', { ascending: false });
+
+    if (exclude) {
+      query = query.neq('id', exclude);
+    }
+
+    if (limit) {
+      query = query.limit(parseInt(limit));
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    res.json({
+    res.json({ 
       success: true,
-      data: listings
+      data 
     });
-
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'İlanlar getirilirken bir hata oluştu',
-      error: error.message
+    console.error('Kullanıcı ilanları getirme hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'İlanlar alınırken bir hata oluştu' 
     });
   }
 });
@@ -454,7 +467,119 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Tekil ilan detayını getir
+// Kullanıcının ilanlarını getir
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status } = req.query;
+
+    let query = supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(
+          id,
+          username,
+          avatar_url
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    // Eğer status parametresi varsa, filtreleme yap
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data: listings, error } = await query;
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('Kullanıcı ilanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İlanlar alınırken bir hata oluştu'
+    });
+  }
+});
+
+// Kullanıcının aktif ilanlarını getir
+router.get('/user/:userId/active', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(
+          id,
+          username,
+          avatar_url
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('Aktif ilanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Aktif ilanlar alınırken bir hata oluştu'
+    });
+  }
+});
+
+// Kullanıcının satılan ilanlarını getir
+router.get('/user/:userId/sold', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { data: listings, error } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        user:users(
+          id,
+          username,
+          avatar_url
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'sold')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: listings
+    });
+
+  } catch (error) {
+    console.error('Satılan ilanları getirme hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Satılan ilanlar alınırken bir hata oluştu'
+    });
+  }
+});
+
+// İlan detayını getir
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -463,24 +588,24 @@ router.get('/:id', async (req, res) => {
       .from('listings')
       .select(`
         *,
-        user:user_id (
+        user:users(
           id,
           username,
-          avatar_url
+          avatar_url,
+          created_at
         )
       `)
       .eq('id', id)
       .single();
 
-    if (error || !listing) {
+    if (error) throw error;
+
+    if (!listing) {
       return res.status(404).json({
         success: false,
-        message: 'İlan bulunamadı veya süresi dolmuş'
+        message: 'İlan bulunamadı'
       });
     }
-
-    // Görüntülenme sayacını kaldıralım şimdilik
-    // İleride eklenebilir
 
     res.json({
       success: true,
@@ -491,8 +616,7 @@ router.get('/:id', async (req, res) => {
     console.error('İlan detayı getirme hatası:', error);
     res.status(500).json({
       success: false,
-      message: 'İlan detayı getirilirken bir hata oluştu',
-      error: error.message
+      message: 'İlan detayı alınırken bir hata oluştu'
     });
   }
 });
@@ -754,6 +878,38 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       success: false,
       message: 'İlan durumu güncellenirken bir hata oluştu',
       error: error.message
+    });
+  }
+});
+
+// Kullanıcının ilan istatistiklerini getir
+router.get('/user-stats/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { data, error } = await supabase
+      .from('listings')
+      .select('status')
+      .eq('user_id', userId)
+      .in('status', ['active', 'sold']);
+
+    if (error) throw error;
+
+    const stats = {
+      active: data.filter(item => item.status === 'active').length,
+      sold: data.filter(item => item.status === 'sold').length,
+      total: data.length
+    };
+
+    res.json({ 
+      success: true,
+      data: stats 
+    });
+  } catch (error) {
+    console.error('İlan istatistikleri getirme hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'İlan istatistikleri alınırken bir hata oluştu' 
     });
   }
 });

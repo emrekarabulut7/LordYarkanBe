@@ -10,58 +10,78 @@ const router = express.Router()
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log('Login isteği:', { email });
+    console.log('Login attempt for:', email);
 
-    // Email ve şifre kontrolü
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email ve şifre gerekli'
-      });
-    }
-
-    // Kullanıcıyı Supabase'den bul
-    const { data: user, error } = await supabase
+    // Kullanıcıyı email ile bul
+    const { data: users, error: userError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
-      .single();
+      .eq('email', email);
 
-    if (error || !user) {
+    console.log('Found users:', users?.length);
+
+    if (userError) {
+      console.error('Database error:', userError);
+      throw userError;
+    }
+
+    if (!users || users.length === 0) {
       return res.status(401).json({
         success: false,
-        message: 'Kullanıcı bulunamadı'
+        message: 'Email veya şifre hatalı'
       });
     }
 
-    // Şifre kontrolü
-    const validPassword = await bcrypt.compare(password, user.password);
+    if (users.length > 1) {
+      console.error('Multiple users found with same email:', users.length);
+      return res.status(500).json({
+        success: false,
+        message: 'Hesap hatası, lütfen yönetici ile iletişime geçin'
+      });
+    }
 
-    if (!validPassword) {
+    const user = users[0];
+
+    // Şifre kontrolü
+    console.log('Checking password...');
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log('Password valid:', isValidPassword);
+
+    if (!isValidPassword) {
       return res.status(401).json({
         success: false,
-        message: 'Geçersiz şifre'
+        message: 'Email veya şifre hatalı'
       });
     }
 
     // JWT token oluştur
     const token = jwt.sign(
-      { 
+      {
         id: user.id,
         email: user.email,
         username: user.username,
-        role: user.role 
+        role: user.role
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
+
+    // Son giriş zamanını güncelle
+    await supabase
+      .from('users')
+      .update({
+        last_sign_in: new Date().toISOString(),
+        status: 'active'
+      })
+      .eq('id', user.id);
 
     // Şifreyi response'dan çıkar
     const { password: _, ...userWithoutPassword } = user;
 
+    console.log('Login successful');
+
     res.json({
       success: true,
-      message: 'Giriş başarılı',
       data: {
         token,
         user: userWithoutPassword
@@ -69,10 +89,10 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login hatası:', error);
-    res.status(500).json({
+    console.error('Login error:', error);
+    res.status(401).json({
       success: false,
-      message: 'Giriş yapılırken bir hata oluştu'
+      message: error.message || 'Giriş yapılırken bir hata oluştu'
     });
   }
 });
@@ -468,6 +488,102 @@ router.post('/google', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Google giriş sırasında bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// Google login callback
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data
+    });
+
+  } catch (error) {
+    console.error('Google callback hatası:', error);
+    res.status(401).json({
+      success: false,
+      message: error.message || 'Google ile giriş yapılırken bir hata oluştu'
+    });
+  }
+});
+
+// Test kullanıcısı oluşturma endpoint'i
+router.post('/create-test-user', async (req, res) => {
+  try {
+    const testUser = {
+      email: 'admin@admin.com',
+      password: 'admin123',
+      username: 'admin',
+      role: 'admin',
+      phone: '05368535931'
+    };
+
+    // Önce tüm test kullanıcılarını temizle
+    console.log('Deleting existing users...');
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('email', testUser.email);
+
+    if (deleteError) {
+      console.error('Delete error:', deleteError);
+      throw deleteError;
+    }
+
+    // Biraz bekle
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Şifreyi hash'le
+    const hashedPassword = await bcrypt.hash(testUser.password, 10);
+    console.log('Hashed password:', hashedPassword);
+
+    // Yeni kullanıcıyı oluştur
+    console.log('Creating new user...');
+    const { data: user, error: insertError } = await supabase
+      .from('users')
+      .insert([
+        {
+          id: crypto.randomUUID(), // Benzersiz ID oluştur
+          email: testUser.email,
+          username: testUser.username,
+          password: hashedPassword,
+          phone: testUser.phone,
+          role: testUser.role,
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      throw insertError;
+    }
+
+    console.log('Created test user:', user);
+
+    res.json({
+      success: true,
+      message: 'Test kullanıcısı başarıyla oluşturuldu',
+      user
+    });
+
+  } catch (error) {
+    console.error('Test kullanıcısı oluşturma hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Test kullanıcısı oluşturulurken hata oluştu',
       error: error.message
     });
   }

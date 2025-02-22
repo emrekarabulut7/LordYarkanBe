@@ -39,4 +39,12 @@ pids
 # Diğer dizinler
 ../frontend/
 ../../*
-../../../* 
+../../../*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/ 

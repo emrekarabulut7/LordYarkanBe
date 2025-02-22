@@ -1,8 +1,8 @@
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
+import * as dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
-import { dirname } from 'path'
+import { dirname, join } from 'path'
 import authRoutes from './routes/auth.js'
 import listingsRoutes from './routes/listings.js'
 import notificationsRoutes from './routes/notifications.js'
@@ -11,7 +11,13 @@ import { listingCleanupJob, startListingCleanupJob } from './jobs/listingCleanup
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-dotenv.config()
+// .env dosyasını yükle
+dotenv.config({ path: join(__dirname, '.env') })
+
+// Debug
+console.log('Environment variables loaded from:', join(__dirname, '.env'))
+console.log('Current working directory:', process.cwd())
+console.log('NODE_ENV:', process.env.NODE_ENV)
 
 const app = express()
 const port = process.env.PORT || 5000

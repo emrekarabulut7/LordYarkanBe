@@ -4,13 +4,15 @@ import { authenticateToken } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Tüm bildirimleri getir
+// Kullanıcının bildirimlerini getir
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.id;
+
     const { data: notifications, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', req.user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -21,7 +23,7 @@ router.get('/', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Bildirim getirme hatası:', error);
+    console.error('Bildirimler alınırken hata:', error);
     res.status(500).json({
       success: false,
       message: 'Bildirimler alınırken bir hata oluştu'
@@ -54,22 +56,25 @@ router.post('/mark-all-read', authenticateToken, async (req, res) => {
   }
 });
 
-// Tek bir bildirimi okundu olarak işaretle
-router.put('/:id/read', authenticateToken, async (req, res) => {
+// Bildirimi okundu olarak işaretle
+router.put('/:notificationId/read', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
+    const { notificationId } = req.params;
+    const userId = req.user.id;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('id', id)
-      .eq('user_id', req.user.id);
+      .eq('id', notificationId)
+      .eq('user_id', userId)
+      .select()
+      .single();
 
     if (error) throw error;
 
     res.json({
       success: true,
-      message: 'Bildirim okundu olarak işaretlendi'
+      data
     });
 
   } catch (error) {
