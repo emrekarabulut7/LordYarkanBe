@@ -39,46 +39,55 @@ router.get('/active-and-sold', async (req, res) => {
 // Öne çıkan ilanları getir
 router.get('/featured', async (req, res) => {
   try {
-    const { data: listings, error } = await supabase
+    // Supabase bağlantısını kontrol et
+    if (!supabase) {
+      throw new Error('Veritabanı bağlantısı bulunamadı');
+    }
+
+    const { data, error } = await supabase
       .from('listings')
       .select(`
-        *,
-        user:user_id (
-          id,
-          username
-        )
+        id,
+        title,
+        description,
+        price,
+        currency,
+        server,
+        listing_type,
+        status,
+        images,
+        created_at,
+        user:users(id, username, avatar_url)
       `)
-      .eq('status', 'active') // Sadece aktif ilanları getir
-      .order('created_at', { ascending: false }) // En yeni ilanlar
-      .limit(6); // En fazla 6 ilan
+      .eq('is_featured', true)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
     if (error) {
-      console.error('Supabase hatası:', error);
+      console.error('Supabase sorgu hatası:', error);
       throw error;
     }
 
-    // Her ilanın resimlerini normalize et ve kullanıcı bilgilerini ekle
-    const normalizedListings = listings.map(listing => {
-      // Eğer images array'i varsa onu kullan, yoksa image_url'i array içinde döndür
-      const normalizedImages = listing.images || [listing.image_url];
-      
-      return {
-        ...listing,
-        images: normalizedImages.filter(Boolean) // null veya undefined değerleri filtrele
-      };
-    });
+    if (!data) {
+      return res.json({
+        success: true,
+        data: [] // Veri yoksa boş array dön
+      });
+    }
 
-    res.json({
+    return res.json({
       success: true,
-      data: normalizedListings
+      data: data
     });
 
   } catch (error) {
     console.error('Öne çıkan ilanları getirme hatası:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'İlanlar getirilirken bir hata oluştu',
-      error: error.message
+      message: 'Öne çıkan ilanlar getirilirken bir hata oluştu',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
