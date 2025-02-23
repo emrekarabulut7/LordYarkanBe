@@ -39,46 +39,28 @@ router.get('/active-and-sold', async (req, res) => {
 // Öne çıkan ilanları getir
 router.get('/featured', async (req, res) => {
   try {
-    // Supabase bağlantısını kontrol et
-    if (!supabase) {
-      throw new Error('Veritabanı bağlantısı bulunamadı');
-    }
-
+    // Son 6 aktif ilanı getir
     const { data, error } = await supabase
       .from('listings')
       .select(`
-        id,
-        title,
-        description,
-        price,
-        currency,
-        server,
-        listing_type,
-        status,
-        images,
-        created_at,
+        *,
         user:users(id, username, avatar_url)
       `)
-      .eq('is_featured', true)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(10);
+      .eq('status', 'active')  // Sadece aktif ilanları getir
+      .order('created_at', { ascending: false })  // En yeniden eskiye
+      .limit(6);  // Son 6 ilan
 
     if (error) {
       console.error('Supabase sorgu hatası:', error);
       throw error;
     }
 
-    if (!data) {
-      return res.json({
-        success: true,
-        data: [] // Veri yoksa boş array dön
-      });
-    }
+    // Debug log ekleyelim
+    console.log('Öne çıkan ilanlar:', data);
 
     return res.json({
       success: true,
-      data: data
+      data: data || []
     });
 
   } catch (error) {
@@ -86,8 +68,7 @@ router.get('/featured', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Öne çıkan ilanlar getirilirken bir hata oluştu',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message
     });
   }
 });
